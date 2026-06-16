@@ -127,9 +127,9 @@ upload_screenshot() {
   # Copy screenshot into repo, commit, push, return raw URL
   cp "$filepath" "$WORKDIR/$filename"
   cd "$WORKDIR"
-  git add "$filename" 2>/dev/null
-  git commit -m "test: add E2E audit screenshot" "$filename" 2>/dev/null
-  git push origin main 2>/dev/null
+  git add "$filename" >&2 2>/dev/null
+  git commit -m "test: add E2E audit screenshot" "$filename" >&2 2>/dev/null
+  git push origin main >&2 2>/dev/null
   echo "https://raw.githubusercontent.com/$REPO/main/$filename"
 }
 
@@ -202,7 +202,7 @@ approve_gate() {
     claude -p "$wa_prompt" \
       --model sonnet \
       --mcp-config "$SCRIPT_DIR/mcp-my-browser.json" \
-      --max-turns 20 \
+      --max-turns 10 \
       --max-budget-usd 1.00 \
       --no-session-persistence \
       --permission-mode auto \

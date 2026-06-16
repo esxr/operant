@@ -1,16 +1,16 @@
 You have a Chrome browser connected via my-browser MCP. WhatsApp Web is open.
 
-Your task: reply "1" to the latest message from the Twilio sandbox contact "Escher" (number +14155238886).
+Your task: reply "1" to the Twilio sandbox contact "Escher" on WhatsApp Web.
 
-Steps:
-1. Use browser_snapshot to see the current WhatsApp Web state
-2. Look for the chat with "Escher" in the chat list (it should have a recent REVIEW message about '{{ARTIFACT}}'). Click on it to open it.
-3. Once the chat is open, use browser_snapshot to see the message input
-4. Click on the message input textbox (look for "Type a message" textbox)
-5. Type "1" and press Enter to send
-6. Use browser_snapshot to confirm "1" was sent
+Steps (follow exactly, minimize snapshots to save context):
+1. Use browser_snapshot with depth=3 to get just the top-level layout
+2. If you see a QR code or login screen, STOP immediately
+3. Click the search box (textbox "Search or start a new chat"), type "Escher", then click the matching chat result
+4. Once the chat is open, click the message input (textbox "Type a message"), type "1", and press Enter
+5. Done — do NOT take another snapshot to verify
 
-Important:
-- The contact name is "Escher" — search for it if you can't see it in the chat list
-- Do NOT navigate away from web.whatsapp.com
-- If you see a QR code or login screen, STOP and report failure
+Key selectors:
+- Search box: textbox "Search or start a new chat"
+- Message input: [data-testid='conversation-compose-box-input']
+
+This is a REVIEW gate for artifact '{{ARTIFACT}}'.
