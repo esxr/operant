@@ -105,8 +105,33 @@ start_chrome() {
 }
 
 gh_comment() {
-  # Post a comment to the tracking GitHub issue
-  gh issue comment "$ISSUE_NUM" --repo "$ISSUE_REPO" --body "$1" 2>/dev/null || true
+  # Post a comment to the tracking GitHub issue.
+  # Use --body-file via temp file to handle large markdown with special chars.
+  local tmpfile="/tmp/e2e-gh-comment-$$.md"
+  echo "$1" > "$tmpfile"
+  gh issue comment "$ISSUE_NUM" --repo "$ISSUE_REPO" --body-file "$tmpfile" 2>/dev/null || true
+  rm -f "$tmpfile"
+}
+
+upload_screenshot() {
+  # Upload a screenshot to a gist, return the raw URL for embedding in markdown.
+  local filepath="$1"
+  if [ ! -f "$filepath" ]; then
+    echo ""
+    return
+  fi
+  local gist_url
+  gist_url=$(gh gist create --public "$filepath" 2>/dev/null | head -1 || echo "")
+  if [ -n "$gist_url" ]; then
+    # Convert gist URL to raw URL for image embedding
+    local gist_id
+    gist_id=$(echo "$gist_url" | grep -oE '[a-f0-9]{20,}')
+    local filename
+    filename=$(basename "$filepath")
+    echo "https://gist.githubusercontent.com/esxr/$gist_id/raw/$filename"
+  else
+    echo ""
+  fi
 }
 
 read_state() {
@@ -149,38 +174,37 @@ SEOF
   log "Simulated gate reply written to $reply_file"
 }
 
-# Try real WhatsApp approval via browser, fall back to simulated reply
+# Approve a gate: try real WhatsApp via browser, with simulated reply as safety net.
+# Simulated reply is dropped FIRST so trigger-gate.js always has something to pick up
+# before its timeout. If real browser approval works, the Twilio webhook reply races
+# with the simulated one — both say "1", so either is fine.
 # Args: $1=prompt_file, $2...=load_prompt substitution args
 approve_gate() {
   local prompt_file="$1"
   shift
 
-  # Check if Chrome CDP is reachable (WhatsApp Web might have timed out)
+  # Always drop simulated reply immediately as safety net.
+  # trigger-gate.js polls pending/ and will pick this up within 3s.
+  simulate_gate_reply
+
+  # Best-effort: also try real WhatsApp via browser (non-blocking)
   if curl -s --max-time 3 http://localhost:9223/json/version &>/dev/null; then
-    log "Chrome CDP reachable — attempting real WhatsApp approval"
+    log "Chrome CDP reachable — also attempting real WhatsApp (best-effort, non-blocking)"
     local wa_prompt
     wa_prompt=$(load_prompt "$prompt_file" "$@")
-    local wa_exit=0
     claude -p "$wa_prompt" \
-      --model haiku \
-      --mcp-config "$PLUGIN_DIR/.mcp.json" \
-      --max-turns 10 \
-      --max-budget-usd 1.00 \
+      --model sonnet \
+      --mcp-config "$SCRIPT_DIR/mcp-my-browser.json" \
+      --max-turns 5 \
+      --max-budget-usd 0.50 \
       --no-session-persistence \
       --permission-mode auto \
       --allowedTools "mcp__my-browser__browser_navigate,mcp__my-browser__browser_snapshot,mcp__my-browser__browser_click,mcp__my-browser__browser_type,mcp__my-browser__browser_press_key,mcp__my-browser__browser_wait_for,mcp__my-browser__browser_evaluate,mcp__my-browser__browser_tabs" \
-      2>&1 | tail -5 || wa_exit=$?
-
-    if [ "$wa_exit" -eq 0 ]; then
-      log "Real WhatsApp approval succeeded"
-      return 0
-    fi
-    log "Real WhatsApp approval failed (exit $wa_exit) — falling back to simulated reply"
+      &>/dev/null &  # fire-and-forget — simulated reply already ensures gate resolves
+    log "Browser approval launched in background (PID $!)"
   else
-    log "Chrome CDP not reachable — falling back to simulated gate reply"
+    log "Chrome CDP not reachable — gate will resolve via simulated reply"
   fi
-
-  simulate_gate_reply
 }
 
 cleanup() {
@@ -242,35 +266,57 @@ WEOF
   # Create specs output dir (where SDLC artifacts go)
   mkdir -p "$WORKDIR/docs/specs"
 
-  # Create GitHub issue
+  # Extract transcript from trigger fixture for the issue body
+  local transcript
+  transcript=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['transcript'])" 2>/dev/null)
+  local call_summary
+  call_summary=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['call_analysis']['call_summary'])" 2>/dev/null)
+  local caller_name
+  caller_name=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['caller_name'])" 2>/dev/null)
+
+  # Create GitHub issue with full context
   log "Creating GitHub issue"
+  local issue_body_file="/tmp/e2e-issue-body-$$.md"
+  cat > "$issue_body_file" <<IBODY
+## Full Pipeline E2E Test
+
+### Feature Request (Voice Call)
+
+> **Caller:** $caller_name
+> **Summary:** $call_summary
+
+\`\`\`
+$transcript
+\`\`\`
+
+### Expected Outcome
+- \`GET /health\` endpoint added to \`server.js\`
+- Returns HTTP 200 with \`{ "status": "ok", "timestamp": "<ISO8601>" }\`
+- All 4 SDLC artifacts produced (intent, HLD, ADR, impl-spec)
+- Pipeline returns to idle state after confirmation
+
+### Pipeline Config
+| Setting | Value |
+|---------|-------|
+| Target repo | \`$REPO\` |
+| SDLC model | \`sonnet\` (via sdlc-writer) |
+| Dev model | \`sonnet\` (via dev-builder) |
+| Audit model | \`haiku\` (via auditor-browser) |
+| Gate approval | simulated (real WhatsApp best-effort) |
+| Gate timeout | 120s |
+| Server port | 3999 |
+| Started | $(date -u +%Y-%m-%dT%H:%M:%SZ) |
+
+### Phases
+Each phase is logged as a comment below with: input, agent, output proof, and artifacts.
+IBODY
   ISSUE_NUM=$(gh issue create \
     --repo "$ISSUE_REPO" \
     --title "[E2E] Full pipeline test — $TIMESTAMP" \
-    --body "$(cat <<IBODY
-## Full Pipeline E2E Test
-
-- **Started:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
-- **Workdir:** \`$WORKDIR\`
-- **Plugin:** \`$PLUGIN_DIR\`
-- **Feature:** Add GET /health returning \`{ status: 'ok', timestamp: '<ISO8601>' }\`
-- **Trigger:** seeded from \`$FIXTURE_FILE\`
-
-### Phases
-1. Triage — classify transcript, create spec dir
-2. SDLC Intent — produce intent-and-constraints.md + WhatsApp review gate
-3. SDLC HLD — produce high-level-design.md + WhatsApp review gate
-4. SDLC ADR — produce adr-lite.md + WhatsApp review gate
-5. SDLC Impl-spec — produce implementation-spec.md + WhatsApp review gate
-6. Dev — dev-builder implements /health endpoint
-7. Audit — auditor verifies /health via browser
-8. Confirmation — WhatsApp confirmation gate
-9. Assertions — verify files, state, endpoint
-IBODY
-)" 2>&1 | grep -oE '[0-9]+$')
+    --body-file "$issue_body_file" 2>&1 | grep -oE '[0-9]+$')
+  rm -f "$issue_body_file"
 
   log "Issue created: $ISSUE_REPO#$ISSUE_NUM"
-  gh_comment "**Phase 0: Setup** complete. Workdir: \`$WORKDIR\`. Trigger seeded."
 
   # Launch Chrome with WhatsApp Web pre-loaded
   # Tab 1: WhatsApp Web (for gate approvals)
@@ -329,7 +375,33 @@ print(name)
   assert_file_exists "$SPEC_DIR/REQUIREMENTS.md"
 
   local duration=$(( SECONDS - start_time ))
-  gh_comment "**Phase 1: Triage** — State: idle → sdlc_intent | Spec: \`$SPEC_DIR\` | Duration: ${duration}s"
+  local requirements_content
+  requirements_content=$(cat "$SPEC_DIR/REQUIREMENTS.md" 2>/dev/null || echo "(empty)")
+  local classification
+  classification=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('classification','unknown'))" 2>/dev/null || echo "unknown")
+
+  gh_comment "$(cat <<COMMENT
+## Phase 1: Triage (${duration}s)
+
+**Agent:** \`process-trigger.js\` (deterministic — no LLM)
+**Input:** Trigger JSON from voice call (call_id: \`e2e-test-call-001\`)
+**Result:** Classified as \`$classification\` → created spec \`health-check-endpoint\`
+
+### FSM Transitions
+\`\`\`
+idle → call_active (CALL_RECEIVED)
+call_active → triage (CALL_COMPLETED)
+triage → sdlc_intent (NEW_REQUIREMENTS)
+\`\`\`
+
+### REQUIREMENTS.md
+<details><summary>Click to expand</summary>
+
+$requirements_content
+
+</details>
+COMMENT
+)"
 }
 
 # =============================================================================
@@ -364,7 +436,7 @@ sdlc_phase() {
   prompt=$(load_prompt "sdlc-writer.md" \
     "SPEC_DIR=$SPEC_DIR" "FROM_STATE=$from_state" "FILENAME=$filename")
   claude -p "$prompt" \
-    --model haiku \
+    --model sonnet \
     --plugin-dir "$PLUGIN_DIR" \
     --max-turns 15 \
     --max-budget-usd 2.00 \
@@ -388,10 +460,11 @@ sdlc_phase() {
   fi
   assert_state "sdlc_review"
 
-  # (c) Send WhatsApp review gate
+  # (c) Send WhatsApp review gate (2 min timeout for E2E)
   log "Triggering WhatsApp review gate for $artifact"
   OPERANT_PI_DATA_DIR="$DATA_DIR" \
     OPERANT_PI_PROJECT_ROOT="$WORKDIR" \
+    CHANNEL_TIMEOUT_review=120 \
     node "$PLUGIN_DIR/lib/cli/trigger-gate.js" review "$artifact" "$SPEC_DIR" &
   local gate_pid=$!
 
@@ -408,7 +481,28 @@ sdlc_phase() {
   assert_state "$to_state"
 
   local duration=$(( SECONDS - start_time ))
-  gh_comment "**Phase $phase_num: SDLC $artifact** — State: $from_state → $to_state | File: \`$filename\` | Duration: ${duration}s"
+  local artifact_content
+  artifact_content=$(cat "$SPEC_DIR/$filename" 2>/dev/null || echo "(not found)")
+
+  gh_comment "$(cat <<COMMENT
+## Phase $phase_num: SDLC $artifact (${duration}s)
+
+**Agent:** \`sonnet\` via sdlc-writer
+**Input prompt:**
+\`\`\`
+$prompt
+\`\`\`
+**FSM:** \`$from_state\` → \`sdlc_review\` → \`$to_state\`
+**Gate:** simulated WhatsApp reply (approved)
+
+### $filename
+<details><summary>Click to expand full artifact</summary>
+
+$artifact_content
+
+</details>
+COMMENT
+)"
 }
 
 phase_sdlc() {
@@ -438,7 +532,7 @@ phase_dev() {
   local dev_prompt
   dev_prompt=$(load_prompt "dev-builder.md" "WORKDIR=$WORKDIR" "SPEC_DIR=$SPEC_DIR")
   claude -p "$dev_prompt" \
-    --model haiku \
+    --model sonnet \
     --plugin-dir "$PLUGIN_DIR" \
     --max-turns 15 \
     --max-budget-usd 2.00 \
@@ -463,7 +557,35 @@ phase_dev() {
   assert_state "audit"
 
   local duration=$(( SECONDS - start_time ))
-  gh_comment "**Phase 6: Dev** — State: dev → audit | Modified: server.js | Duration: ${duration}s"
+
+  # Capture git diff summary and the /health route snippet
+  cd "$WORKDIR"
+  local diff_stat
+  diff_stat=$(git diff --stat 2>/dev/null || echo "(no git diff available)")
+  local health_snippet
+  health_snippet=$(grep -A5 "health" "$WORKDIR/server.js" 2>/dev/null | head -8 || echo "(not found)")
+
+  gh_comment "$(cat <<COMMENT
+## Phase 6: Dev (${duration}s)
+
+**Agent:** \`sonnet\` via dev-builder
+**Input prompt:**
+\`\`\`
+$dev_prompt
+\`\`\`
+**FSM:** \`dev\` → \`audit\`
+
+### Changes
+\`\`\`
+$diff_stat
+\`\`\`
+
+### /health route (from server.js)
+\`\`\`javascript
+$health_snippet
+\`\`\`
+COMMENT
+)"
 }
 
 # =============================================================================
@@ -484,17 +606,17 @@ phase_audit() {
   assert_state "audit"
   cd "$WORKDIR"
 
-  # Start dev server
-  log "Starting Express dev server"
-  node server.js &
+  # Start dev server on port 3999 to avoid conflicts with other local servers
+  log "Starting Express dev server on port 3999"
+  PORT=3999 node server.js &
   local server_pid=$!
   echo "$server_pid" > "$DATA_DIR/server.pid"
   sleep 3
 
   # Curl assertion (deterministic)
-  log "Curl test: GET http://localhost:3000/health"
+  log "Curl test: GET http://localhost:3999/health"
   local http_code
-  http_code=$(curl -s -o /tmp/e2e-health-response.json -w "%{http_code}" http://localhost:3000/health 2>/dev/null || echo "000")
+  http_code=$(curl -s -o /tmp/e2e-health-response.json -w "%{http_code}" http://localhost:3999/health 2>/dev/null || echo "000")
 
   if [ "$http_code" != "200" ]; then
     log "FAIL: /health returned HTTP $http_code (expected 200)"
@@ -515,13 +637,14 @@ phase_audit() {
   fi
   log "Curl assertion passed: status=ok, timestamp present"
 
-  # Browser audit via auditor-browser MCP
+  # Browser audit via auditor-browser MCP (with screenshot)
   log "Running browser audit via auditor-browser"
+  local screenshot_path="/tmp/e2e-audit-screenshot-$TIMESTAMP.png"
   local audit_prompt
-  audit_prompt=$(load_prompt "auditor-browser.md")
+  audit_prompt=$(load_prompt "auditor-browser.md" "SCREENSHOT_PATH=$screenshot_path")
   claude -p "$audit_prompt" \
-    --model haiku \
-    --mcp-config "$PLUGIN_DIR/.mcp.json" \
+    --model sonnet \
+    --mcp-config "$SCRIPT_DIR/mcp-auditor.json" \
     --max-turns 8 \
     --max-budget-usd 1.00 \
     --no-session-persistence \
@@ -533,6 +656,18 @@ phase_audit() {
   kill "$server_pid" 2>/dev/null || true
   rm -f "$DATA_DIR/server.pid"
 
+  # Upload screenshot if it exists
+  local screenshot_md=""
+  if [ -f "$screenshot_path" ]; then
+    log "Uploading audit screenshot"
+    local screenshot_url
+    screenshot_url=$(upload_screenshot "$screenshot_path")
+    if [ -n "$screenshot_url" ]; then
+      screenshot_md="### Screenshot
+![Audit screenshot of /health endpoint]($screenshot_url)"
+    fi
+  fi
+
   # Transition: AUDIT_PASSED → demo_setup, then DEMO_FAILED → confirmation (skip demo)
   log "Transitioning: AUDIT_PASSED then DEMO_FAILED (skip demo)"
   OPERANT_PI_DATA_DIR="$DATA_DIR" \
@@ -543,7 +678,25 @@ phase_audit() {
   assert_state "confirmation"
 
   local duration=$(( SECONDS - start_time ))
-  gh_comment "**Phase 7: Audit** — State: audit → confirmation | HTTP: 200 | Body: \`$body\` | Duration: ${duration}s"
+
+  gh_comment "$(cat <<COMMENT
+## Phase 7: Audit (${duration}s)
+
+**Agent:** \`sonnet\` via auditor-browser (headless)
+**FSM:** \`audit\` → \`confirmation\` (demo skipped)
+
+### Curl Verification
+\`\`\`bash
+$ curl http://localhost:3999/health
+# HTTP $http_code
+$body
+\`\`\`
+
+**Assertions:** \`status == "ok"\` ✓ | \`timestamp\` present ✓
+
+$screenshot_md
+COMMENT
+)"
 }
 
 # =============================================================================
@@ -561,10 +714,11 @@ phase_confirmation() {
   assert_state "confirmation"
   cd "$WORKDIR"
 
-  # Send confirmation gate
+  # Send confirmation gate (2 min timeout for E2E)
   log "Triggering WhatsApp confirmation gate"
   OPERANT_PI_DATA_DIR="$DATA_DIR" \
     OPERANT_PI_PROJECT_ROOT="$WORKDIR" \
+    CHANNEL_TIMEOUT_confirmation=120 \
     node "$PLUGIN_DIR/lib/cli/trigger-gate.js" confirmation "$SPEC_DIR" &
   local gate_pid=$!
 
@@ -583,7 +737,14 @@ phase_confirmation() {
   log "Final state: $final_state"
 
   local duration=$(( SECONDS - start_time ))
-  gh_comment "**Phase 8: Confirmation** — State: confirmation → $final_state | Duration: ${duration}s"
+
+  gh_comment "$(cat <<COMMENT
+## Phase 8: Confirmation (${duration}s)
+
+**Gate:** simulated WhatsApp reply (approved with "1")
+**FSM:** \`confirmation\` → \`$final_state\`
+COMMENT
+)"
 }
 
 # =============================================================================
@@ -625,7 +786,21 @@ phase_assertions() {
   fi
   log "Final state: $final_state (OK)"
 
-  gh_comment "**Phase 9: Assertions** — All passed. Files: 5 artifacts + server.js. State: \`$final_state\`."
+  gh_comment "$(cat <<COMMENT
+## Phase 9: Final Assertions
+
+| Check | Result |
+|-------|--------|
+| Trigger moved to \`processed/\` | ✓ ($processed_count files) |
+| \`intent-and-constraints.md\` exists | ✓ |
+| \`high-level-design.md\` exists | ✓ |
+| \`adr-lite.md\` exists | ✓ |
+| \`implementation-spec.md\` exists | ✓ |
+| \`REQUIREMENTS.md\` exists | ✓ |
+| \`server.js\` contains \`/health\` route | ✓ |
+| FSM state = \`idle\` or \`complete\` | ✓ (\`$final_state\`) |
+COMMENT
+)"
 }
 
 # =============================================================================
@@ -646,7 +821,7 @@ phase_evaluation() {
   eval_prompt=$(load_prompt "evaluator.md" \
     "ISSUE_URL=$issue_url" "ISSUE_NUM=$ISSUE_NUM" "ISSUE_REPO=$ISSUE_REPO")
   claude -p "$eval_prompt" \
-    --model haiku \
+    --model sonnet \
     --max-turns 5 \
     --max-budget-usd 0.50 \
     --no-session-persistence \

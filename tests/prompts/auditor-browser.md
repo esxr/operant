@@ -1,1 +1,1 @@
-Navigate to http://localhost:3000/health using auditor-browser. Take a screenshot. Verify the page shows JSON with status 'ok' and a timestamp field. Report what you see.
+Navigate to http://localhost:3999/health using auditor-browser. Take a screenshot and save it to {{SCREENSHOT_PATH}}. Verify the page shows JSON with status 'ok' and a timestamp field. Report what you see.
