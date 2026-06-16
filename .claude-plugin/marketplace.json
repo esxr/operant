@@ -1,0 +1,24 @@
+{
+  "name": "operant",
+  "metadata": {
+    "description": "Voice-driven autonomous development pipeline. Phone calls become shipped features through spec, build, audit, and confirmation phases."
+  },
+  "owner": {
+    "name": "Operant Labs",
+    "email": "pranav@dhoolia.com"
+  },
+  "plugins": [
+    {
+      "name": "operant",
+      "source": "./",
+      "description": "Voice-driven autonomous development pipeline. Phone calls become shipped features through spec, build, audit, and confirmation phases.",
+      "version": "0.2.0",
+      "homepage": "https://operantlabs.com",
+      "repository": "https://github.com/esxr/operant",
+      "license": "Proprietary",
+      "keywords": ["voice", "pipeline", "sdlc", "retell", "autonomous"],
+      "category": "productivity",
+      "tags": ["voice", "sdlc", "autonomous-development"]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "callers": [
+    {
+      "phone": "+61416052430",
+      "name": "Pranav Dhoolia",
+      "role": "caller",
+      "added": "2026-06-10"
+    }
+  ],
+  "default_blocker_target": ""
+}

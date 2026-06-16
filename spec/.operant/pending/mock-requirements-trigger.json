@@ -1,0 +1,29 @@
+{
+  "event": "call_ended",
+  "call": {
+    "call_id": "mock-requirements-001",
+    "agent_id": "agent_fd50bd6b1cf61664e75e2a8dd9",
+    "call_type": "phone_call",
+    "from_number": "+61416052430",
+    "to_number": "+14482173844",
+    "direction": "inbound",
+    "start_timestamp": 1718000000000,
+    "end_timestamp": 1718000300000,
+    "transcript": "Hi, I'd like to build a simple task tracker CLI tool. It should let me add tasks with a title and priority, list all tasks sorted by priority, mark tasks as done, and delete tasks. Store everything in a local JSON file. Keep it minimal — no database, no web UI. Just a clean Node.js CLI with TypeScript. The commands should be: add, list, done, delete, and clear.",
+    "call_analysis": {
+      "call_summary": "User wants a minimal CLI task tracker in Node.js/TypeScript with add/list/done/delete/clear commands, stored in local JSON.",
+      "custom_analysis_data": {
+        "feature_name": "task-tracker-cli",
+        "feature_title": "Task Tracker CLI",
+        "caller_name": "Pranav Dhoolia",
+        "priority": "medium",
+        "problem_statement": "Need a lightweight local task management tool for terminal workflows",
+        "goals": "[\"Simple CLI for task management\", \"Local JSON storage\", \"Priority-based sorting\"]",
+        "functional_requirements": "[\"add command with title and priority\", \"list command sorted by priority\", \"done command to mark complete\", \"delete command by ID\", \"clear command to remove all\"]",
+        "non_functional_constraints": "[\"Node.js + TypeScript only\", \"No database\", \"No web UI\", \"Single JSON file storage\"]",
+        "boundaries": "[\"CLI only\", \"Local machine only\", \"No multi-user support\"]",
+        "open_questions": "[]"
+      }
+    }
+  }
+}

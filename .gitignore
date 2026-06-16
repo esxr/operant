@@ -1,0 +1,40 @@
+.playwright*
+node_modules/
+*.js.map
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Secrets & config
+.env
+.env.*
+data/
+*.pid
+TECH.md
+pranav-experience.md
+scratchpad/
+*.png
+supabase/
+
+# Claude Code local settings
+.claude/*.local.md
+.workspace-data-dir
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Website build artifacts (in docs)
+docs/docs/website/node_modules/
+docs/docs/website/.next/
+docs/docs/website/out/
+docs/**/website/.next/
+**/.next/
+.playwright-mcp/

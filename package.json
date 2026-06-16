@@ -1,0 +1,19 @@
+{
+  "name": "operant",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Voice-driven development pipeline — Claude Code plugin",
+  "author": "Pranav Dhoolia <pranav@dhoolia.com>",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "md-to-pdf": "^5.2.0",
+    "twilio": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

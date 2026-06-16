@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operant AI — The Delegation Layer for Software Delivery</title>
+<meta name="description" content="Operant AI builds the delegation layer for software delivery: a verified, accountable pipeline that owns the work from spec to shipped feature — and earns the right to interrupt you.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2f4f1;
+    --panel: #e9ede8;
+    --ink: #16222b;
+    --soft: #44525c;
+    --faint: #7c8a90;
+    --rule: #ccd5cf;
+    --signal: #d4581f;
+    --signal-deep: #b04514;
+    --verify: #1d6e54;
+    --dial: #38566c;
+    --display: "Archivo", "Helvetica Neue", sans-serif;
+    --body: "Source Serif 4", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 18.5px;
+    line-height: 1.64;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 28px 110px;
+  }
+
+  /* ---------- masthead ---------- */
+  header.masthead {
+    padding: 72px 0 34px;
+    border-bottom: 2px solid var(--ink);
+    animation: rise 0.8s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .wordmark {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.30em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin: 0 0 30px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .wordmark .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--signal);
+    flex: none;
+  }
+  .wordmark::after {
+    content: "INVESTOR NARRATIVE · 2026";
+    font-family: var(--mono);
+    font-weight: 400;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--faint);
+    margin-left: auto;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(36px, 6.6vw, 58px);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  h1 .accent { color: var(--signal-deep); }
+  .standfirst {
+    font-size: clamp(19px, 2.4vw, 23px);
+    line-height: 1.45;
+    color: var(--soft);
+    margin: 0;
+    max-width: 46ch;
+  }
+
+  /* ---------- the call (signature) ---------- */
+  .call-card {
+    margin: 44px 0 0;
+    border: 1.5px solid var(--ink);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fbfcfa;
+    box-shadow: 6px 6px 0 rgba(22,34,43,0.08);
+    animation: rise 0.8s cubic-bezier(.2,.7,.2,1) both;
+    animation-delay: 0.1s;
+  }
+  .call-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+  }
+  .call-head .live {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--signal);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .call-head .dur { margin-left: auto; color: #9fb0a8; letter-spacing: 0.08em; }
+  .call-body { padding: 24px 26px 8px; }
+  .call-line {
+    font-family: var(--mono);
+    font-size: 14.5px;
+    line-height: 1.65;
+    margin: 0 0 16px;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: rise 0.55s ease both;
+  }
+  .call-line .who {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .call-line.you .who { color: var(--dial); }
+  .call-line.op .who { color: var(--signal-deep); }
+  .call-line.you { color: var(--soft); }
+  .call-line.op { color: var(--ink); }
+  .call-line:nth-child(1) { animation-delay: 0.5s; }
+  .call-line:nth-child(2) { animation-delay: 1.2s; }
+  .call-line:nth-child(3) { animation-delay: 1.9s; }
+  .call-line:nth-child(4) { animation-delay: 2.6s; }
+  .call-foot {
+    padding: 12px 26px 16px;
+    border-top: 1px dashed var(--rule);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    opacity: 0;
+    animation: rise 0.55s ease both;
+    animation-delay: 3.3s;
+  }
+  .call-foot .ok { color: var(--verify); font-weight: 500; }
+
+  /* ---------- abstract ---------- */
+  .abstract {
+    margin: 40px 0 0;
+    padding: 30px 32px;
+    background: var(--panel);
+    border-left: 4px solid var(--signal);
+  }
+  .abstract .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 12px;
+  }
+  .abstract p {
+    margin: 0;
+    font-size: 19.5px;
+    line-height: 1.55;
+  }
+  .abstract p + p { margin-top: 14px; }
+  .abstract strong { font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 70px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--signal-deep);
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+  h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(26px, 4.2vw, 36px);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+  p { margin: 0 0 18px; }
+  a { color: var(--signal-deep); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  .pull {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(21px, 3.2vw, 27px);
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    margin: 34px 0;
+    padding-left: 20px;
+    border-left: 3px solid var(--signal);
+  }
+
+  /* ---------- era strip ---------- */
+  .eras {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin: 28px 0 22px;
+    border: 1.5px solid var(--ink);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .era {
+    padding: 20px 20px 18px;
+    border-right: 1.5px solid var(--ink);
+    background: #fbfcfa;
+  }
+  .era:last-child { border-right: none; background: var(--ink); color: var(--paper); }
+  .era .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 8px;
+  }
+  .era:last-child .label { color: #e8a886; }
+  .era .name {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 19px;
+    margin: 0 0 6px;
+  }
+  .era p.desc { font-size: 15px; line-height: 1.5; margin: 0; color: var(--soft); }
+  .era:last-child p.desc { color: #cdd8d2; }
+
+  /* ---------- pipeline ledger ---------- */
+  .ledger {
+    margin: 26px 0;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: #fbfcfa;
+    overflow: hidden;
+  }
+  .ledger-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 18px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .ledger-row:last-child { border-bottom: none; }
+  .ledger-row .phase {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--dial);
+  }
+  .ledger-row .what { font-size: 16px; line-height: 1.55; color: var(--soft); }
+  .ledger-row .what strong { color: var(--ink); font-weight: 600; }
+  .ledger-row.gate { background: rgba(212,88,31,0.05); }
+  .ledger-row.gate .phase { color: var(--signal-deep); }
+  .ledger-row.verify-row .phase { color: var(--verify); }
+
+  /* ---------- guarantees ---------- */
+  .guarantees { margin: 26px 0 8px; }
+  .guarantee {
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 16px;
+    padding: 16px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .guarantee:last-child { border-bottom: 1px solid var(--rule); }
+  .guarantee .mark {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--verify);
+    line-height: 1.6;
+  }
+  .guarantee p { margin: 0; font-size: 16.5px; line-height: 1.55; color: var(--soft); }
+  .guarantee p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- vignettes ---------- */
+  .vignette {
+    margin: 0 0 26px;
+    padding: 24px 26px;
+    background: #fbfcfa;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+  }
+  .vignette .who {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--signal-deep);
+    margin: 0 0 10px;
+  }
+  .vignette h3 { margin-bottom: 10px; }
+  .vignette p { font-size: 16.5px; line-height: 1.6; color: var(--soft); margin-bottom: 12px; }
+  .vignette p:last-child { margin-bottom: 0; }
+  .vignette p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- tables ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 15.5px;
+    line-height: 1.5;
+  }
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--rule);
+    font-weight: 600;
+  }
+  tbody td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  tbody td strong { font-weight: 600; }
+  .hl-col { background: rgba(29,110,84,0.07); }
+  thead th.hl-col { color: var(--verify); }
+
+  /* ---------- team ---------- */
+  .team-grid { display: grid; gap: 22px; margin: 26px 0; }
+  .team-card {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 20px;
+    padding: 22px 24px;
+    background: #fbfcfa;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+  }
+  .team-photo {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--paper);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .team-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .team-photo .initials {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .team-name { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 0; }
+  .team-role {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--signal-deep);
+    margin: 2px 0 10px;
+  }
+  .team-bio { font-size: 15.5px; line-height: 1.55; color: var(--soft); margin: 0; }
+  .team-bio strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- ask list ---------- */
+  ol.asks {
+    list-style: none;
+    counter-reset: ask;
+    padding: 0;
+    margin: 26px 0;
+  }
+  ol.asks li {
+    counter-increment: ask;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-top: 1px solid var(--rule);
+  }
+  ol.asks li:last-child { border-bottom: 1px solid var(--rule); }
+  ol.asks li::before {
+    content: counter(ask, decimal-leading-zero);
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--signal-deep);
+    padding-top: 3px;
+  }
+  ol.asks li p { margin: 0; font-size: 16.5px; line-height: 1.55; color: var(--soft); }
+  ol.asks li p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- CTA ---------- */
+  .cta-bar {
+    margin-top: 56px;
+    padding: 36px;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 8px;
+    text-align: center;
+  }
+  .cta-bar .brand {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+  .cta-bar .tagline {
+    color: #e8a886;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin: 0 0 16px;
+  }
+  .cta-bar a { color: var(--paper); font-family: var(--mono); font-size: 14px; letter-spacing: 0.04em; }
+
+  footer {
+    margin-top: 70px;
+    padding-top: 24px;
+    border-top: 2px solid var(--ink);
+    font-size: 13.5px;
+    color: var(--faint);
+    line-height: 1.55;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .call-line, .call-foot { opacity: 1; transform: none; }
+  }
+
+  @media (max-width: 600px) {
+    body { font-size: 17.5px; }
+    .wrap { padding: 0 20px 80px; }
+    .wordmark::after { display: none; }
+    .eras { grid-template-columns: 1fr; }
+    .era { border-right: none; border-bottom: 1.5px solid var(--ink); }
+    .era:last-child { border-bottom: none; }
+    .ledger-row { grid-template-columns: 1fr; gap: 4px; }
+    .team-card { grid-template-columns: 1fr; }
+    table { font-size: 13.5px; }
+    thead th, tbody td { padding: 8px 9px; }
+  }
+
+  @media print {
+    body { background: white; font-size: 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { padding: 0 0 30px; max-width: none; }
+    section, .call-card, .vignette { page-break-inside: avoid; }
+    .call-line, .call-foot { opacity: 1 !important; transform: none !important; }
+    header.masthead, .call-card { animation: none; }
+    a { text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="wordmark"><span class="dot"></span>Operant&nbsp;AI</p>
+    <h1>We are building the <span class="accent">delegation layer</span> for software delivery.</h1>
+    <p class="standfirst">Copilots made builders faster. Agents made them supervisors. We make them decision-makers — by giving delivery to a pipeline accountable enough to own it, and disciplined enough to only interrupt when it has earned the right.</p>
+  </header>
+
+  <!-- Signature: the elevator pitch, delivered as the product delivers -->
+  <div class="call-card" role="figure" aria-label="Transcript of a 47-second call that starts a delivery pipeline">
+    <div class="call-head"><span class="live"></span>INCOMING — THIS IS THE ENTIRE INTERFACE<span class="dur">00:47</span></div>
+    <div class="call-body">
+      <p class="call-line you"><span class="who">YOU</span>We need a referral flow on the dashboard — unique invite links, a credit when an invitee activates, and a small leaderboard for the team plan.</p>
+      <p class="call-line op"><span class="who">OPERANT</span>Understood. Should credits apply automatically at activation, or pend until the invitee's first payment?</p>
+      <p class="call-line you"><span class="who">YOU</span>First payment. I have to run — handle the rest.</p>
+      <p class="call-line op"><span class="who">OPERANT</span>Done. Spec for your approval by 10:30 on WhatsApp. I will only call again if I am blocked. Your walkthrough is on Meet this afternoon.</p>
+    </div>
+    <div class="call-foot">
+      <span>CALL ENDED · 00:47</span>
+      <span class="ok">PIPELINE #4112 STARTED</span>
+      <span>SPEC → BUILD → VERIFY → DEMO</span>
+    </div>
+  </div>
+
+  <div class="abstract">
+    <p class="tag">The pitch, in one paragraph</p>
+    <p>Product people lose the majority of their week not to deciding what to build, but to shepherding it through delivery — writing specs, chasing implementation, re-explaining context, and checking that what shipped matches what was asked. <strong>Operant AI takes ownership of that entire chain.</strong> Describe the feature in a short call; our pipeline writes the specification, builds the code, visually verifies every requirement against the running application, and brings you a live walkthrough to approve. You make decisions at a handful of gates — by voice or WhatsApp — and nothing else. The phone is not the product. <strong>It is the proof: when a system can genuinely be trusted with delivery, a phone is all the interface you need.</strong></p>
+    <p>This is working in market today: <strong>$10K in revenue in our first two months, four paying companies, and a $60K first pilot</strong> — every feature delivered through the pipeline, with us embedded as the PM at each customer. This is not SaaS that assists. <strong>It is software that operates.</strong></p>
+  </div>
+
+  <!-- ===================== WHY WE STARTED ===================== -->
+  <section id="origin">
+    <p class="eyebrow">Why we started</p>
+    <h2>Eight hundred conversations, one sentence</h2>
+    <p>This company did not begin as a product idea. It began as a pattern. We run <strong>PMs in AI</strong> — a community of more than nine hundred product leaders from companies like AWS, Salesforce, and Walmart, and from dozens of AI-first startups — and across thirteen events in New York, Boston, and San Francisco, we kept hearing the same sentence in different accents:</p>
+    <p class="pull">“I know exactly what to build. I just need someone — or something — to build it.”</p>
+    <p>Our own community survey put a number on it: respondents estimated roughly 60% of their week goes to delivery logistics rather than product thinking. The striking part was not the figure. It was that the new generation of AI tools had barely moved it. Copilots and chat assistants made each delivery task faster — and left every task, every handoff, and all of the accountability exactly where it was: on the product person's plate.</p>
+    <p>We concluded that the industry has been optimizing the wrong variable. The bottleneck is not the speed of the work. It is the <strong>ownership</strong> of the work.</p>
+  </section>
+
+  <!-- ===================== THE CATEGORY ===================== -->
+  <section id="category">
+    <p class="eyebrow">The category shift</p>
+    <h2>From assistance to supervision to delegation</h2>
+    <p>Every generation of AI tooling has changed the human's job title without changing the human's burden.</p>
+
+    <div class="eras">
+      <div class="era">
+        <p class="label">Era one</p>
+        <p class="name">Copilots</p>
+        <p class="desc">AI assists. You do the work, slightly faster. Every keystroke, decision, and check is still yours.</p>
+      </div>
+      <div class="era">
+        <p class="label">Era two</p>
+        <p class="name">Agents</p>
+        <p class="desc">AI does the work — while you watch. You babysit a terminal, review diffs, and carry all the risk of unverified output.</p>
+      </div>
+      <div class="era">
+        <p class="label">Era three — ours</p>
+        <p class="name">Delegates</p>
+        <p class="desc">AI owns the outcome. It specifies, builds, verifies, and demonstrates — and interrupts you only at decisions that are genuinely yours.</p>
+      </div>
+    </div>
+
+    <p>Delegation is not a smarter model. It is a contract: the system commits to a process, proves its work, and respects your attention. That contract cannot be prompted into existence. It has to be engineered. That is what we have built.</p>
+    <p>The industry has a name for this transition — SaaS to SaiS. We take it literally: the most valuable companies of this cycle will not sell software that helps a profession work faster. <strong>They will sit at the centre of how the next generation of that profession gets built</strong> — and for product people, that centre is the system that takes responsibility for delivery itself.</p>
+  </section>
+
+  <!-- ===================== WHAT WE BUILT ===================== -->
+  <section id="product">
+    <p class="eyebrow">What we built</p>
+    <h2>A delivery pipeline that earns trust the way a good team does</h2>
+    <p>A feature delegated to Operant moves through a fixed sequence. The creative work inside each phase is done by AI agents; the transitions between phases are deterministic code — eighteen states, twenty-three events, hardcoded. The AI never gets to decide whether it is finished. The pipeline does.</p>
+
+    <div class="ledger" aria-label="Pipeline phases">
+      <div class="ledger-row gate"><span class="phase">CALL</span><span class="what"><strong>You describe the feature.</strong> A short voice call captures intent; the system asks only the questions that change the design.</span></div>
+      <div class="ledger-row"><span class="phase">SPEC</span><span class="what">Agents draft the intent document, high-level design, decision records, and implementation spec — <strong>one approval gate per document</strong>, answered from your phone.</span></div>
+      <div class="ledger-row"><span class="phase">BUILD</span><span class="what">A multi-agent build implements against the approved spec. <strong>You hear nothing unless it is blocked</strong> — and then it calls, gets its answer, and continues.</span></div>
+      <div class="ledger-row verify-row"><span class="phase">VERIFY</span><span class="what">A visual auditor drives the running application in a headless browser and checks <strong>every stated requirement</strong>, capturing screenshots as evidence. Failures trigger silent revision and rebuild.</span></div>
+      <div class="ledger-row gate"><span class="phase">DEMO</span><span class="what">You join an auto-scheduled Meet and walk through the live feature. <strong>Say “ship it,” or give feedback</strong> — feedback stacks onto the original spec, and the loop runs again.</span></div>
+    </div>
+
+    <p>Three properties make this delegation rather than automation:</p>
+
+    <div class="guarantees">
+      <div class="guarantee"><span class="mark">✓</span><p><strong>Deterministic process.</strong> Phase transitions are code, not model judgment. The pipeline behaves like CI/CD, not like a demo — crash-resumable, file-based, inspectable, and trackable in Git.</p></div>
+      <div class="guarantee"><span class="mark">✓</span><p><strong>Verified outcomes.</strong> We do not report that the work is done; we prove it, requirement by requirement, against the running application — with screenshots a human can audit after the fact.</p></div>
+      <div class="guarantee"><span class="mark">✓</span><p><strong>Accountable interruptions.</strong> Simple decisions arrive on WhatsApp; consequential ones arrive as a call; everything escalates on timeout. Your attention is treated as the scarcest resource in the system — because it is.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== WHO NEEDS THIS ===================== -->
+  <section id="usecases">
+    <p class="eyebrow">Who reaches for this first</p>
+    <h2>Four people we built this for</h2>
+    <p>These are composite scenes, drawn directly from conversations in our community. Each one represents a budget line or a backlog that exists today.</p>
+
+    <div class="vignette">
+      <p class="who">The founder without a CTO</p>
+      <h3>The agency quote on a Friday evening</h3>
+      <p>A solo founder with paying users needs a billing migration and two dashboard features. The agency quote arrives: <strong>five figures and six weeks</strong>, with a kickoff call to schedule the kickoff call. Her alternative until now was learning to supervise a coding agent herself — becoming the engineering manager she founded a company to avoid being.</p>
+      <p>With Operant, she describes all three pieces of work on her commute. The specs arrive for approval by mid-morning; the walkthroughs land over the following two days. <strong>She competes with funded teams on shipping cadence, without hiring or supervising anyone.</strong> For her, we do not replace a tool. We replace the agency invoice.</p>
+    </div>
+
+    <div class="vignette">
+      <p class="who">The fractional product leader</p>
+      <h3>Three clients, one phone</h3>
+      <p>A fractional PM runs roadmaps for three early-stage clients. His value is judgment — knowing what to build and why — but his weeks disappear into three different Jira boards, three standups, and three flavors of “quick sync.” He cannot scale his judgment because every client purchase comes bundled with his delivery labor.</p>
+      <p>With Operant, each client's features run as parallel pipelines. He answers gates between meetings and reviews demos in scheduled blocks. <strong>His deliverable shifts from hours to outcomes — and his practice scales for the first time.</strong></p>
+    </div>
+
+    <div class="vignette">
+      <p class="who">The enterprise PM with an unstaffable backlog</p>
+      <h3>The tools no engineer will ever be assigned to</h3>
+      <p>Inside every large company sits a graveyard backlog: the internal dashboard, the ops console, the workflow glue — work that is genuinely valuable and will <strong>never win a headcount argument</strong> against the core product. Today that backlog is either ignored or smuggled through as shadow IT with no review, no audit trail, and no owner.</p>
+      <p>Operant gives this lane something it has never had: a delivery process with specifications, decision records, verified requirements, and screenshot evidence — <strong>more documented accountability than most staffed projects produce</strong>. We are not asking enterprises to bypass engineering. We are giving the unstaffed lane a governed path to done.</p>
+    </div>
+
+    <div class="vignette">
+      <p class="who">The growth PM</p>
+      <h3>Experiments that die in the queue</h3>
+      <p>A growth PM's best ideas are small: a reworked onboarding step, a pricing-page variant, a re-engagement email trigger. Individually none justifies an engineer's sprint, so they queue, decay, and die — and the learning they would have produced dies with them.</p>
+      <p>When a verified experiment costs one phone call instead of one sprint negotiation, <strong>the economics of experimentation invert</strong>: the team runs ten times the tests and lets the metrics, not the queue, decide what matters.</p>
+    </div>
+  </section>
+
+  <!-- ===================== WHY WE WIN ===================== -->
+  <section id="moat">
+    <p class="eyebrow">Why this is defensible</p>
+    <h2>The labs build engines. We build the harness.</h2>
+    <p>The obvious question deserves a direct answer: why is this not simply a future feature of the frontier models, or a thin wrapper any team could replicate? Because the product's value comes from deep non-AI infrastructure that the AI operates <em>within</em> — three layers of it.</p>
+
+    <div class="guarantees">
+      <div class="guarantee"><span class="mark">01</span><p><strong>The process layer.</strong> A hardcoded state machine — eighteen states, twenty-three events, deterministic TypeScript. Strip the AI out entirely and a complete delivery pipeline remains: file-based state, multi-channel gates with timeout escalation, audit loops, revision stacking, crash-resumable architecture. The process enforcement is pure product engineering, as reliable as CI/CD.</p></div>
+      <div class="guarantee"><span class="mark">02</span><p><strong>The interface layer.</strong> Incumbents are constrained by what they already are — IDEs, chat windows, ticket boards. “Call in, hang up, approve on WhatsApp, demo on Meet” cannot be retrofitted onto those architectures; it has to be the architecture. We are AI-native from the ground up, built for a customer who never touches a keyboard.</p></div>
+      <div class="guarantee"><span class="mark">03</span><p><strong>The orchestration layer.</strong> Coordinating spec-writing agents, a three-agent build team — Maintainer, Builder, Police — and visual auditors, each with scoped skills and handoff protocols, is an engineering problem, not a prompting problem. And it compounds: every pipeline run yields data on blocker patterns, revision frequency, and agent performance that tightens the system, while every customer accumulates a library of approved specs and decision records — their delivery memory — inside our harness.</p></div>
+    </div>
+
+    <p class="pull">If the underlying models improve tenfold tomorrow, Operant gets better — it does not get displaced. The pipeline is the product. The AI is the workforce.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Copilots &amp; IDE agents</th>
+          <th>Chat assistants</th>
+          <th>Agencies</th>
+          <th class="hl-col">Operant AI</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Who owns delivery</strong></td><td>You</td><td>You</td><td>Shared, slowly</td><td class="hl-col"><strong>The pipeline</strong></td></tr>
+        <tr><td><strong>Verification</strong></td><td>Manual review</td><td>None</td><td>Manual QA</td><td class="hl-col"><strong>Visual audit, evidence attached</strong></td></tr>
+        <tr><td><strong>Process guarantee</strong></td><td>None</td><td>None</td><td>Contractual</td><td class="hl-col"><strong>Deterministic state machine</strong></td></tr>
+        <tr><td><strong>Your interface</strong></td><td>IDE</td><td>Chat window</td><td>Email threads</td><td class="hl-col"><strong>A phone</strong></td></tr>
+        <tr><td><strong>Your role</strong></td><td>Operator</td><td>Prompter</td><td>Account manager</td><td class="hl-col"><strong>Decision-maker</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Others make people faster at delivery. <strong>We remove them from delivery — and hand back only the decisions.</strong></p>
+  </section>
+
+  <!-- ===================== WHY NOW ===================== -->
+  <section id="whynow">
+    <p class="eyebrow">Why now</p>
+    <h2>Four doors opened at once</h2>
+
+    <div class="guarantees">
+      <div class="guarantee"><span class="mark">✓</span><p><strong>Models crossed the capability threshold.</strong> Frontier models now reliably write production code, hold a specification, and follow multi-step instructions. Eighteen months ago, a pipeline like ours was a research project; today it is an engineering project.</p></div>
+      <div class="guarantee"><span class="mark">✓</span><p><strong>Voice became production infrastructure.</strong> Modern voice and telephony APIs make a phone-first interface viable at startup cost — the channel our customers already live on is finally programmable.</p></div>
+      <div class="guarantee"><span class="mark">✓</span><p><strong>Incumbents are structurally stuck.</strong> Jira, Linear, and Notion are bolting AI onto architectures designed for human operators. The window for AI-native entrants exists precisely because the paradigm cannot be retrofitted.</p></div>
+      <div class="guarantee"><span class="mark">✓</span><p><strong>The customer is primed.</strong> The vibe-coding wave proved product people will use AI to ship. But they do not want to learn an IDE — they want to stay in their lane. We meet them on a phone call.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== BUSINESS ===================== -->
+  <section id="business">
+    <p class="eyebrow">How we make money</p>
+    <h2>Do the job, prove the pipeline, then productize</h2>
+    <p>Our go-to-market is deliberately unglamorous: we embed as the product manager at real companies and deliver real features through the pipeline. The customer buys a shipped, verified outcome — priced against the agency invoice or the contractor day-rate it replaces, not against a seat license — and every engagement hardens the product and generates the run data that compounds our orchestration layer. As the gates and verification mature, the same pipeline sells as a self-serve product: flat plans by parallel-pipeline capacity, no per-seat fees, and an enterprise tier for the governed internal-tools lane. The wedge is the individual builder; the expansion is the team, where accumulated delivery memory makes every additional feature cheaper than the last — and harder to walk away from.</p>
+  </section>
+
+  <!-- ===================== WHERE WE ARE ===================== -->
+  <section id="traction">
+    <p class="eyebrow">Proof in market</p>
+    <h2>Early revenue, paying companies, and the community that started it</h2>
+    <p>We did not build this in a vacuum, and we are not pitching a prototype. In our first two months: <strong>$10K in revenue across four paying companies, with a further $25K in pipeline</strong>. Our first pilot — Extuitive — proved the system end to end and stands at a $60K pipeline. Active trials run at Second Axis, StudyOracle, and PeggApp, spanning a product OS, a complex multi-phase training-material workflow, and consumer app features — each delivered through the pipeline with us embedded as the PM. Customer references are available for all four.</p>
+    <p>Behind the revenue sits our distribution: <strong>PMs in AI</strong>, a community of more than nine hundred product leaders built through thirteen curated events across New York, Boston, and San Francisco — the source of the original demand signal, our design-partner pool, and our earliest funnel. We are supported by a compute partnership with GPTNB, and deploy through <strong>OpenDeploy</strong> — the agent-native deployment platform co-founded by our own team, completing the path from phone call to deployed feature.</p>
+  </section>
+
+  <!-- ===================== TEAM ===================== -->
+  <section id="team">
+    <p class="eyebrow">The team</p>
+    <h2>Australian-built. Globally deployed.</h2>
+    <p>Each of us has independently built one piece of this system at production scale — Pranav the AI pipeline, Tanmay the research layer, Purple and Jeff the deployment platform beneath it. Operant is the convergence: an end-to-end system from phone call to deployed feature.</p>
+
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="team-photo" style="background: linear-gradient(135deg, #1d6e54, #38566c);"><img src="pranav.jpg" alt="Pranav Dhoolia" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=initials>PD</span>';"></div>
+        <div>
+          <p class="team-name">Pranav Dhoolia</p>
+          <p class="team-role">Founder &amp; CEO — AI agent systems</p>
+          <p class="team-bio">Building AI agents since before ChatGPT. GPT-3 thesis with CSIRO (UQ, Dean's Global Scholar) shipped as a Slack meeting assistant. Founded <strong>Godel</strong>, an AI agent that reached $60K revenue in three months. His open-source LangGraph + MCP integration was featured by LangChain; built the MCP client for Relevance AI's core stack. Embedded as the PM at our trial companies, dogfooding Operant from the inside.</p>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="team-photo" style="background: linear-gradient(135deg, #1d6e54, #38566c);"><img src="tanmay.jpg" alt="Tanmay Kumar" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=initials>TK</span>';"></div>
+        <div>
+          <p class="team-name">Tanmay Kumar</p>
+          <p class="team-role">Co-founder — AI Research</p>
+          <p class="team-bio"><strong>2 patents</strong> in machine intelligence and signal processing. Published at <strong>AAAI</strong> on brain-computer interfaces — decoding imagined speech from EEG signals using deep learning. Smart India Hackathon national winner. Built AI-driven supply chain optimisation for <strong>TCS</strong> using custom genetic algorithms. UNSW Computer Engineering (Honours).</p>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="team-photo" style="background: linear-gradient(135deg, #b04514, #d4581f);"><img src="purple.jpg" alt="Ziyan (Purple) He" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=initials>ZH</span>';"></div>
+        <div>
+          <p class="team-name">Ziyan (Purple) He</p>
+          <p class="team-role">Head of Infrastructure</p>
+          <p class="team-bio">Nearly two years at <strong>AWS</strong> (RDS &amp; Networking) building infrastructure Fortune 500s run on; 2.5 years shipping backend systems at Telstra, Australia's largest telco. Co-founded <strong>OpenDeploy</strong>, the agent-native deployment platform that serves as Operant's deployment layer.</p>
+        </div>
+      </div>
+      <div class="team-card">
+        <div class="team-photo" style="background: linear-gradient(135deg, #16222b, #44525c);"><img src="jeff.jpg" alt="Jeff Zhu" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=initials>JZ</span>';"></div>
+        <div>
+          <p class="team-name">Jeff Zhu</p>
+          <p class="team-role">CTO — Delivery systems</p>
+          <p class="team-bio">Eight-plus years of engineering. Built an LLM routing platform that scaled to <strong>~$2M ARR</strong>; led DevOps and Kubernetes infrastructure across APAC at SIG. Co-founded <strong>OpenDeploy</strong>, architecting its entire deployment pipeline end to end.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== THE ASK ===================== -->
+  <section id="ask">
+    <p class="eyebrow">Let's talk</p>
+    <h2>Where we are, and who we are looking for</h2>
+    <p>We are pre-seed with early revenue, paying customers, and a nine-hundred-member community behind us. We are in conversations with a small number of funds and are looking for a <strong>lead investor</strong> who shares our view of the category: the future of product work is not faster tools — it is fewer tools, and a system trustworthy enough to be delegated to. Capital goes to hardening the verification layer, expanding pipeline parallelism, and converting embedded engagements into self-serve product revenue, with completion-rate and usage data as the milestones for the next raise.</p>
+    <p>We would also welcome continued <strong>design partners</strong> — founders, fractional product leaders, and enterprise internal-tools owners ready to run their next ten features through the pipeline.</p>
+
+    <h3 style="margin-top:30px;">References</h3>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Role</th><th>Context</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Chong</strong></td><td>Founder, Extuitive</td><td>First pilot customer — $60K pipeline</td></tr>
+        <tr><td><strong>Aakash Bhatnagar</strong></td><td>Founder, Second Axis</td><td>Active trial — embedded PM delivery</td></tr>
+        <tr><td><strong>India</strong></td><td>Founder, PeggApp</td><td>Active trial — consumer app delivery</td></tr>
+        <tr><td><strong>Jugandeep Singh</strong></td><td>Investor, StudyOracle</td><td>Investor perspective on an Operant-delivered product</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===================== VISION ===================== -->
+  <section id="vision">
+    <p class="eyebrow">The vision</p>
+    <h2>From delegated features to a delegated roadmap</h2>
+    <p>Today, you decide what to build and we deliver it. The same harness — verified outcomes, accountable gates, accumulated delivery memory — extends naturally upstream: a system that watches your product metrics, proposes what to build next, delivers it, proves it, and books the walkthrough. The destination is not a faster product team. It is a product organization where <strong>human attention is spent exclusively on judgment</strong> — and everything downstream of a decision simply happens.</p>
+    <p class="pull">The last tool a product leader adopts is the one that makes them the decision-maker — and nothing else.</p>
+
+    <div class="cta-bar">
+      <p class="brand">Operant AI</p>
+      <p class="tagline">Delivery, delegated</p>
+      <p style="margin:0;"><a href="https://operantlabs.com">operantlabs.com</a> &ensp;&middot;&ensp; <a href="mailto:kabir@operantlabs.com">kabir@operantlabs.com</a></p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Operant AI — the delegation layer for software delivery. Built in Australia, deployed globally. A deterministic pipeline, AI agents per phase, visual verification with evidence, and decision gates that respect your attention. Time-allocation figures from our community survey of PMs in AI; the four customer scenes in “Who reaches for this first” are illustrative composites drawn from member conversations.</p>
+  </footer>
+
+</div>
+</body>
+</html>

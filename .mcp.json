@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "my-browser": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--cdp-endpoint", "http://localhost:9223"
+      ]
+    },
+    "auditor-browser": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless",
+        "--viewport-size=1280x720",
+        "--output-dir=./proof-of-working/videos",
+        "--caps=core,devtools"
+      ]
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      }
+    },
+    "supermemory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "supermemory-mcp@latest"],
+      "env": {
+        "SUPERMEMORY_API_KEY": "${SUPERMEMORY_API_KEY}"
+      }
+    }
+  }
+}
