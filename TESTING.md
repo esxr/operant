@@ -44,13 +44,15 @@ Runs the **entire pipeline on a real codebase** (`esxr/operant-sample-app`). Onl
 - **Model:** all `claude -p` invocations use `--model haiku` for speed/cost
 - **Cost:** ~$2-5 per run (haiku pricing: 5 WhatsApp gates + sdlc-writer + dev-builder + auditor + evaluator)
 
-### Browser Setup
+### Browser Setup & WhatsApp Fallback
 
 - Chrome launched automatically with `--remote-debugging-port=9223` in Phase 0
 - Pre-opens **Tab 1: WhatsApp Web** (`web.whatsapp.com`) — used by all gate approvals
 - `my-browser` MCP connects via CDP on port 9223 — agents reference Tab 1 directly
 - `auditor-browser` MCP runs headless (separate instance, no pre-setup needed)
 - Chrome killed automatically in cleanup
+- **Fallback:** if Chrome CDP unreachable or browser approval fails (e.g. WhatsApp session expired), `approve_gate` drops a simulated reply JSON into `pending/` so `trigger-gate.js` picks it up and the pipeline continues
+- Simulated reply: `{ "source": "whatsapp", "body": "1", ... }` — same shape as real webhook payload
 
 ### Prompt Templates (`tests/prompts/`)
 

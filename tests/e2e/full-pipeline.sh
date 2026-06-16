@@ -51,19 +51,49 @@ load_prompt() {
   echo "$content"
 }
 
+CHROME_PROFILE="/tmp/operant-chrome-profile"
+
 start_chrome() {
+  # Chrome blocks --remote-debugging-port on the default profile.
+  # Solution: copy the real profile to a persistent non-default location.
+  # This preserves WhatsApp Web login, cookies, extensions across runs.
+  # See: .claude/skills/browser-harness/SKILL.md § "Launching Chrome with CDP"
+
+  # 1. Quit any running Chrome — flag is silently ignored if Chrome is already running
+  if pgrep -f "Google Chrome" &>/dev/null; then
+    log "Killing existing Chrome instances (CDP flag requires exclusive launch)"
+    pkill -f "Google Chrome" 2>/dev/null || true
+    sleep 3
+  fi
+
+  # 2. Seed profile from real Chrome on first run; reuse on subsequent runs
+  if [ ! -d "$CHROME_PROFILE" ]; then
+    local real_profile="$HOME/Library/Application Support/Google/Chrome"
+    if [ -d "$real_profile" ]; then
+      log "Copying real Chrome profile to $CHROME_PROFILE (first-time setup, preserves WhatsApp login)"
+      cp -R "$real_profile" "$CHROME_PROFILE"
+    else
+      log "No existing Chrome profile found — starting fresh"
+      mkdir -p "$CHROME_PROFILE"
+    fi
+  else
+    log "Reusing existing operant Chrome profile at $CHROME_PROFILE"
+  fi
+
+  # 3. Launch with the non-default profile copy
   log "Launching Chrome with remote debugging on port 9223"
-  /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
     --remote-debugging-port=9223 \
     --no-first-run \
     --no-default-browser-check \
-    --user-data-dir="/tmp/e2e-chrome-profile" \
+    --user-data-dir="$CHROME_PROFILE" \
     "https://web.whatsapp.com" \
     "about:blank" \
     &>/dev/null &
   CHROME_PID=$!
   log "Chrome PID: $CHROME_PID"
-  # Wait for CDP to be ready
+
+  # 4. Wait for CDP to be ready
   for i in $(seq 1 15); do
     if curl -s http://localhost:9223/json/version &>/dev/null; then
       log "Chrome CDP ready"
@@ -102,6 +132,55 @@ assert_file_exists() {
     exit 1
   fi
   log "File OK: $1"
+}
+
+simulate_gate_reply() {
+  # Drop a simulated WhatsApp reply JSON into pending/ so trigger-gate.js picks it up
+  local reply_file="$DATA_DIR/pending/simulated-reply-$(date +%s%N).json"
+  cat > "$reply_file" <<SEOF
+{
+  "source": "whatsapp",
+  "from_number": "+61416052430",
+  "body": "1",
+  "caller_name": "E2E Simulated",
+  "message_sid": "SIM_$(date +%s)"
+}
+SEOF
+  log "Simulated gate reply written to $reply_file"
+}
+
+# Try real WhatsApp approval via browser, fall back to simulated reply
+# Args: $1=prompt_file, $2...=load_prompt substitution args
+approve_gate() {
+  local prompt_file="$1"
+  shift
+
+  # Check if Chrome CDP is reachable (WhatsApp Web might have timed out)
+  if curl -s --max-time 3 http://localhost:9223/json/version &>/dev/null; then
+    log "Chrome CDP reachable — attempting real WhatsApp approval"
+    local wa_prompt
+    wa_prompt=$(load_prompt "$prompt_file" "$@")
+    local wa_exit=0
+    claude -p "$wa_prompt" \
+      --model haiku \
+      --mcp-config "$PLUGIN_DIR/.mcp.json" \
+      --max-turns 10 \
+      --max-budget-usd 1.00 \
+      --no-session-persistence \
+      --permission-mode auto \
+      --allowedTools "mcp__my-browser__browser_navigate,mcp__my-browser__browser_snapshot,mcp__my-browser__browser_click,mcp__my-browser__browser_type,mcp__my-browser__browser_press_key,mcp__my-browser__browser_wait_for,mcp__my-browser__browser_evaluate,mcp__my-browser__browser_tabs" \
+      2>&1 | tail -5 || wa_exit=$?
+
+    if [ "$wa_exit" -eq 0 ]; then
+      log "Real WhatsApp approval succeeded"
+      return 0
+    fi
+    log "Real WhatsApp approval failed (exit $wa_exit) — falling back to simulated reply"
+  else
+    log "Chrome CDP not reachable — falling back to simulated gate reply"
+  fi
+
+  simulate_gate_reply
 }
 
 cleanup() {
@@ -316,19 +395,10 @@ sdlc_phase() {
     node "$PLUGIN_DIR/lib/cli/trigger-gate.js" review "$artifact" "$SPEC_DIR" &
   local gate_pid=$!
 
-  # (d) Wait for WhatsApp message to arrive, then approve via browser
+  # (d) Wait for WhatsApp message to arrive, then approve (real or simulated)
   sleep 10  # give Twilio time to deliver
-  log "Approving via WhatsApp Web (my-browser)"
-  local wa_prompt
-  wa_prompt=$(load_prompt "whatsapp-approve-review.md" "ARTIFACT=$artifact")
-  claude -p "$wa_prompt" \
-    --model haiku \
-    --max-turns 10 \
-    --max-budget-usd 1.00 \
-    --no-session-persistence \
-    --permission-mode auto \
-    --allowedTools "mcp__my-browser__browser_navigate,mcp__my-browser__browser_snapshot,mcp__my-browser__browser_click,mcp__my-browser__browser_type,mcp__my-browser__browser_press_key,mcp__my-browser__browser_wait_for,mcp__my-browser__browser_evaluate,mcp__my-browser__browser_tabs" \
-    2>&1 | tail -5
+  log "Approving review gate for $artifact"
+  approve_gate "whatsapp-approve-review.md" "ARTIFACT=$artifact"
 
   # (e) Wait for gate to resolve
   log "Waiting for gate to resolve..."
@@ -451,6 +521,7 @@ phase_audit() {
   audit_prompt=$(load_prompt "auditor-browser.md")
   claude -p "$audit_prompt" \
     --model haiku \
+    --mcp-config "$PLUGIN_DIR/.mcp.json" \
     --max-turns 8 \
     --max-budget-usd 1.00 \
     --no-session-persistence \
@@ -497,19 +568,10 @@ phase_confirmation() {
     node "$PLUGIN_DIR/lib/cli/trigger-gate.js" confirmation "$SPEC_DIR" &
   local gate_pid=$!
 
-  # Wait for message delivery, then approve
+  # Wait for message delivery, then approve (real or simulated)
   sleep 10
-  log "Approving confirmation via WhatsApp Web (my-browser)"
-  local confirm_prompt
-  confirm_prompt=$(load_prompt "whatsapp-approve-confirmation.md")
-  claude -p "$confirm_prompt" \
-    --model haiku \
-    --max-turns 10 \
-    --max-budget-usd 1.00 \
-    --no-session-persistence \
-    --permission-mode auto \
-    --allowedTools "mcp__my-browser__browser_navigate,mcp__my-browser__browser_snapshot,mcp__my-browser__browser_click,mcp__my-browser__browser_type,mcp__my-browser__browser_press_key,mcp__my-browser__browser_wait_for,mcp__my-browser__browser_evaluate,mcp__my-browser__browser_tabs" \
-    2>&1 | tail -5
+  log "Approving confirmation gate"
+  approve_gate "whatsapp-approve-confirmation.md"
 
   # Wait for gate
   log "Waiting for confirmation gate to resolve..."
