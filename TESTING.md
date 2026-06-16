@@ -41,18 +41,17 @@ Runs the **entire pipeline on a real codebase** (`esxr/operant-sample-app`). Onl
 - **Target:** `esxr/operant-sample-app` — minimal Express + HTML, cloned to `/tmp/operant-e2e-<timestamp>`
 - **Feature:** "Add GET /health returning `{ status: 'ok', timestamp: '<ISO8601>' }`"
 - **Trigger:** `tests/fixtures/health-endpoint-trigger.json` — seeded into `pending/`
-- **Model:** all `claude -p` invocations use `--model haiku` for speed/cost
-- **Cost:** ~$2-5 per run (haiku pricing: 5 WhatsApp gates + sdlc-writer + dev-builder + auditor + evaluator)
+- **Models:** `sonnet` for generative tasks (sdlc-writer, dev-builder, auditor, evaluator, browser approval), minimal MCP configs to avoid context bloat
+- **Cost:** ~$5-10 per run (sonnet pricing: 5 WhatsApp gates + 4 SDLC artifacts + dev + audit + eval)
 
-### Browser Setup & WhatsApp Fallback
+### Browser Setup & WhatsApp Approval
 
-- Chrome launched automatically with `--remote-debugging-port=9223` in Phase 0
-- Pre-opens **Tab 1: WhatsApp Web** (`web.whatsapp.com`) — used by all gate approvals
-- `my-browser` MCP connects via CDP on port 9223 — agents reference Tab 1 directly
-- `auditor-browser` MCP runs headless (separate instance, no pre-setup needed)
-- Chrome killed automatically in cleanup
-- **Fallback:** if Chrome CDP unreachable or browser approval fails (e.g. WhatsApp session expired), `approve_gate` drops a simulated reply JSON into `pending/` so `trigger-gate.js` picks it up and the pipeline continues
-- Simulated reply: `{ "source": "whatsapp", "body": "1", ... }` — same shape as real webhook payload
+- Chrome launched with `--remote-debugging-port=9223`, persistent profile at `/tmp/operant-chrome-profile` (copied from real Chrome on first run — preserves WhatsApp Web login)
+- Pre-opens **Tab 1: WhatsApp Web** (`web.whatsapp.com`) — browser agent finds "Escher" contact (Twilio sandbox `+14155238886`) and sends "1"
+- `auditor-browser` MCP runs headless (separate instance) — takes screenshot, committed to repo for GitHub issue embedding
+- **Approval flow:** real WhatsApp message sent via Twilio → browser agent replies "1" on WhatsApp Web → reply bridged into `pending/` (no webhook server in local mode)
+- **Safety-net:** bridge reply scheduled at 90s in background, so `trigger-gate.js` (120s timeout) always gets a reply even if browser agent is slow
+- **Prerequisite:** Twilio sandbox must be active — send `join primitive-distance` to `+14155238886` if expired (error 63015)
 
 ### Prompt Templates (`tests/prompts/`)
 
@@ -85,10 +84,12 @@ Loaded via `load_prompt "file.md" "KEY=value" ...` helper in the script.
 | 9 | Assertions | Verify files, state, endpoint | — |
 | 10 | Evaluation | `claude -p` reviews GH issue, comments PASS/FAIL | — |
 
-### Logging
+### Logging (GitHub Issue Comments)
 - GitHub issue created on `esxr/operant-sample-app` at start
-- Every phase logged as a `gh issue comment` with state transition, files, duration
-- Final `claude -p` evaluator reviews the thread and comments PASS/FAIL
+- Each phase comment includes: agent model, input prompt, full artifact output (in `<details>`), FSM transitions, proof snippets
+- Phase 7 (Audit): curl response + auditor screenshot (committed to repo, embedded as image)
+- Phase 9: assertion checklist table with ✓ marks
+- Phase 10: `claude -p` evaluator reviews the full thread and comments PASS/FAIL
 
 ### Assertions (Phase 9)
 1. Trigger file moved to `processed/`
