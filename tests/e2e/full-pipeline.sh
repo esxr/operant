@@ -114,24 +114,23 @@ gh_comment() {
 }
 
 upload_screenshot() {
-  # Upload a screenshot to a gist, return the raw URL for embedding in markdown.
+  # Upload a screenshot to the sample-app repo as a committed file,
+  # return the raw GitHub URL for embedding in issue comments.
+  # gh gist doesn't support binary files, so we commit to the repo instead.
   local filepath="$1"
   if [ ! -f "$filepath" ]; then
     echo ""
     return
   fi
-  local gist_url
-  gist_url=$(gh gist create --public "$filepath" 2>/dev/null | head -1 || echo "")
-  if [ -n "$gist_url" ]; then
-    # Convert gist URL to raw URL for image embedding
-    local gist_id
-    gist_id=$(echo "$gist_url" | grep -oE '[a-f0-9]{20,}')
-    local filename
-    filename=$(basename "$filepath")
-    echo "https://gist.githubusercontent.com/esxr/$gist_id/raw/$filename"
-  else
-    echo ""
-  fi
+  local filename
+  filename="e2e-screenshot-$TIMESTAMP.png"
+  # Copy screenshot into repo, commit, push, return raw URL
+  cp "$filepath" "$WORKDIR/$filename"
+  cd "$WORKDIR"
+  git add "$filename" 2>/dev/null
+  git commit -m "test: add E2E audit screenshot" "$filename" 2>/dev/null
+  git push origin main 2>/dev/null
+  echo "https://raw.githubusercontent.com/$REPO/main/$filename"
 }
 
 read_state() {
@@ -159,52 +158,71 @@ assert_file_exists() {
   log "File OK: $1"
 }
 
-simulate_gate_reply() {
-  # Drop a simulated WhatsApp reply JSON into pending/ so trigger-gate.js picks it up
-  local reply_file="$DATA_DIR/pending/simulated-reply-$(date +%s%N).json"
+bridge_reply() {
+  # Bridge a WhatsApp reply into pending/ for trigger-gate.js.
+  # In local mode there's no webhook server to receive Twilio callbacks,
+  # so we write the file that the webhook would have written.
+  local source="${1:-whatsapp}"
+  local caller="${2:-E2E Browser}"
+  local reply_file="$DATA_DIR/pending/wa-reply-$(date +%s%N).json"
   cat > "$reply_file" <<SEOF
 {
-  "source": "whatsapp",
+  "source": "$source",
   "from_number": "+61416052430",
   "body": "1",
-  "caller_name": "E2E Simulated",
-  "message_sid": "SIM_$(date +%s)"
+  "caller_name": "$caller",
+  "message_sid": "WA_$(date +%s)"
 }
 SEOF
-  log "Simulated gate reply written to $reply_file"
+  log "Bridged reply written to $reply_file"
 }
 
-# Approve a gate: try real WhatsApp via browser, with simulated reply as safety net.
-# Simulated reply is dropped FIRST so trigger-gate.js always has something to pick up
-# before its timeout. If real browser approval works, the Twilio webhook reply races
-# with the simulated one — both say "1", so either is fine.
+# Approve a gate via WhatsApp Web browser, then bridge the reply into pending/.
+# Flow: browser sends "1" on WhatsApp Web (real message) → we write the reply
+# file that the webhook server would have written (no webhook in local mode).
+# Falls back to bridged-only reply if browser fails.
 # Args: $1=prompt_file, $2...=load_prompt substitution args
 approve_gate() {
   local prompt_file="$1"
   shift
+  local approval_source="simulated"
 
-  # Always drop simulated reply immediately as safety net.
-  # trigger-gate.js polls pending/ and will pick this up within 3s.
-  simulate_gate_reply
+  # Schedule a safety-net bridge reply at 90s in background.
+  # This ensures trigger-gate.js (120s timeout) always gets a reply
+  # even if the browser agent takes longer than expected.
+  (sleep 90 && bridge_reply "whatsapp" "E2E safety-net" && log "Safety-net bridge fired at 90s") &
+  local safety_pid=$!
 
-  # Best-effort: also try real WhatsApp via browser (non-blocking)
+  # Try real WhatsApp approval via browser
   if curl -s --max-time 3 http://localhost:9223/json/version &>/dev/null; then
-    log "Chrome CDP reachable — also attempting real WhatsApp (best-effort, non-blocking)"
+    log "Chrome CDP reachable — sending real WhatsApp approval via browser"
     local wa_prompt
     wa_prompt=$(load_prompt "$prompt_file" "$@")
+    local wa_exit=0
     claude -p "$wa_prompt" \
       --model sonnet \
       --mcp-config "$SCRIPT_DIR/mcp-my-browser.json" \
-      --max-turns 5 \
-      --max-budget-usd 0.50 \
+      --max-turns 20 \
+      --max-budget-usd 1.00 \
       --no-session-persistence \
       --permission-mode auto \
       --allowedTools "mcp__my-browser__browser_navigate,mcp__my-browser__browser_snapshot,mcp__my-browser__browser_click,mcp__my-browser__browser_type,mcp__my-browser__browser_press_key,mcp__my-browser__browser_wait_for,mcp__my-browser__browser_evaluate,mcp__my-browser__browser_tabs" \
-      &>/dev/null &  # fire-and-forget — simulated reply already ensures gate resolves
-    log "Browser approval launched in background (PID $!)"
+      2>&1 | tail -5 || wa_exit=$?
+
+    if [ "$wa_exit" -eq 0 ]; then
+      log "Browser sent '1' on WhatsApp Web — bridging reply for trigger-gate"
+      approval_source="whatsapp-browser"
+      kill "$safety_pid" 2>/dev/null || true  # cancel safety net
+      bridge_reply "whatsapp" "E2E $approval_source"
+      return 0
+    fi
+    log "Browser approval failed (exit $wa_exit) — safety-net bridge will fire"
   else
-    log "Chrome CDP not reachable — gate will resolve via simulated reply"
+    log "Chrome CDP not reachable — safety-net bridge will fire"
   fi
+
+  # Safety net is already scheduled; wait for it if needed
+  wait "$safety_pid" 2>/dev/null || true
 }
 
 cleanup() {
@@ -469,7 +487,7 @@ sdlc_phase() {
   local gate_pid=$!
 
   # (d) Wait for WhatsApp message to arrive, then approve (real or simulated)
-  sleep 10  # give Twilio time to deliver
+  sleep 15  # give Twilio time to deliver message to phone
   log "Approving review gate for $artifact"
   approve_gate "whatsapp-approve-review.md" "ARTIFACT=$artifact"
 
@@ -638,10 +656,11 @@ phase_audit() {
   log "Curl assertion passed: status=ok, timestamp present"
 
   # Browser audit via auditor-browser MCP (with screenshot)
+  # The MCP saves screenshots to its --output-dir (proof-of-working/videos by default).
+  # We run from $WORKDIR so the screenshot lands in $WORKDIR/.playwright-mcp/
   log "Running browser audit via auditor-browser"
-  local screenshot_path="/tmp/e2e-audit-screenshot-$TIMESTAMP.png"
   local audit_prompt
-  audit_prompt=$(load_prompt "auditor-browser.md" "SCREENSHOT_PATH=$screenshot_path")
+  audit_prompt=$(load_prompt "auditor-browser.md")
   claude -p "$audit_prompt" \
     --model sonnet \
     --mcp-config "$SCRIPT_DIR/mcp-auditor.json" \
@@ -656,16 +675,27 @@ phase_audit() {
   kill "$server_pid" 2>/dev/null || true
   rm -f "$DATA_DIR/server.pid"
 
-  # Upload screenshot if it exists
+  # Find and upload the screenshot (MCP saves to .playwright-mcp/ or proof-of-working/)
   local screenshot_md=""
-  if [ -f "$screenshot_path" ]; then
-    log "Uploading audit screenshot"
+  local screenshot_file
+  screenshot_file=$(find "$WORKDIR" /tmp -maxdepth 3 -name "e2e-health-audit.png" -o -name "page-*.png" 2>/dev/null | head -1)
+  if [ -z "$screenshot_file" ]; then
+    # Fallback: find any recent png from playwright
+    screenshot_file=$(find "$WORKDIR" /tmp -maxdepth 4 -name "*.png" -newer "$DATA_DIR/current-state.txt" 2>/dev/null | head -1)
+  fi
+  if [ -n "$screenshot_file" ] && [ -f "$screenshot_file" ]; then
+    log "Found screenshot: $screenshot_file"
     local screenshot_url
-    screenshot_url=$(upload_screenshot "$screenshot_path")
+    screenshot_url=$(upload_screenshot "$screenshot_file")
     if [ -n "$screenshot_url" ]; then
       screenshot_md="### Screenshot
 ![Audit screenshot of /health endpoint]($screenshot_url)"
+      log "Screenshot uploaded: $screenshot_url"
+    else
+      log "Screenshot upload failed"
     fi
+  else
+    log "No screenshot file found"
   fi
 
   # Transition: AUDIT_PASSED → demo_setup, then DEMO_FAILED → confirmation (skip demo)
@@ -723,7 +753,7 @@ phase_confirmation() {
   local gate_pid=$!
 
   # Wait for message delivery, then approve (real or simulated)
-  sleep 10
+  sleep 15  # give Twilio time to deliver message to phone
   log "Approving confirmation gate"
   approve_gate "whatsapp-approve-confirmation.md"
 

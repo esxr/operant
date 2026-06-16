@@ -1,1 +1,1 @@
-Navigate to http://localhost:3999/health using auditor-browser. Take a screenshot and save it to {{SCREENSHOT_PATH}}. Verify the page shows JSON with status 'ok' and a timestamp field. Report what you see.
+Navigate to http://localhost:3999/health using auditor-browser. Take a screenshot (use browser_take_screenshot with filename "e2e-health-audit.png"). Then use browser_snapshot to verify the page shows JSON with status 'ok' and a timestamp field. Report what you see.
