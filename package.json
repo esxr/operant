@@ -6,7 +6,9 @@
   "author": "Pranav Dhoolia <pranav@dhoolia.com>",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "md-to-pdf": "^5.2.0",
@@ -14,6 +16,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "fast-check": "^4.8.0",
+    "msw": "^2.14.6",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.9"
   }
 }

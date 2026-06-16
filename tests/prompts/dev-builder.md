@@ -1,0 +1,1 @@
+You are implementing a feature in this Express app ({{WORKDIR}}). Read the implementation spec at {{SPEC_DIR}}/implementation-spec.md. Add a GET /health endpoint to server.js that returns JSON { status: 'ok', timestamp: '<current ISO8601 time>' } with a 200 status code. Only modify server.js — keep it minimal.

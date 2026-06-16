@@ -1,0 +1,20 @@
+{
+  "call_id": "e2e-test-call-001",
+  "from_number": "+16505551234",
+  "to_number": "+16509556535",
+  "direction": "inbound",
+  "call_type": "phone_call",
+  "agent_id": "e2e-test-agent",
+  "start_timestamp": 1750099200000,
+  "end_timestamp": 1750099320000,
+  "transcript": "Hey, I need a health check endpoint. Add a GET /health route that returns JSON with two fields: status set to ok, and timestamp set to the current time in ISO 8601 format. It should return a 200 status code. That's it, keep it simple.",
+  "call_analysis": {
+    "call_summary": "User requested a health check endpoint at GET /health returning JSON with status ok and current ISO 8601 timestamp.",
+    "custom_analysis_data": {
+      "feature_name": "health-check-endpoint",
+      "call_summary": "Add GET /health endpoint returning { status: 'ok', timestamp: '<ISO8601>' } with 200 status."
+    }
+  },
+  "recording_url": "",
+  "caller_name": "E2E Test User"
+}
