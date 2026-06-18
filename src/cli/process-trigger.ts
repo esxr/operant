@@ -161,7 +161,7 @@ async function sendGitHubNotification(issue: NonNullable<TriggerPayload["github_
       req.end();
     });
 
-    process.stderr.write("[process-trigger] WhatsApp notification sent\n");
+    // Success — no log (stdout is reserved for JSON result)
   } catch (err) {
     process.stderr.write(`[process-trigger] WhatsApp notification failed: ${(err as Error).message}\n`);
   }
