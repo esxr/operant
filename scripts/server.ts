@@ -3,12 +3,14 @@
 // Run: node scripts/server.js
 
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   readFileSync,
   writeFileSync,
   unlinkSync,
   mkdirSync,
   existsSync,
+  readdirSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,6 +116,17 @@ function json(
     "Content-Length": Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+function verifyGitHubSignature(
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
+  const expected =
+    "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");
+  if (expected.length !== signature.length) return false;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +331,82 @@ async function handleWhatsAppWebhook(
   res.end("<Response></Response>");
 }
 
+async function handleGitHubWebhook(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const rawBody = await readRawBody(req);
+
+  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+  if (!secret) {
+    log(`[webhook/github] ERROR: GITHUB_WEBHOOK_SECRET not configured`);
+    json(res, 500, { error: "Webhook secret not configured" });
+    return;
+  }
+
+  const signature = req.headers["x-hub-signature-256"] as string | undefined;
+  if (!signature) {
+    log(`[webhook/github] REJECTED: missing x-hub-signature-256 header`);
+    json(res, 401, { error: "Missing signature" });
+    return;
+  }
+
+  if (!verifyGitHubSignature(rawBody, signature, secret)) {
+    log(`[webhook/github] REJECTED: invalid signature`);
+    json(res, 401, { error: "Invalid signature" });
+    return;
+  }
+
+  const event = req.headers["x-github-event"] as string | undefined;
+  if (event !== "issues") {
+    log(`[webhook/github] ignored event: ${event}`);
+    json(res, 200, { ignored: true });
+    return;
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    json(res, 400, { error: "Invalid JSON body" });
+    return;
+  }
+
+  if (payload.action !== "opened") {
+    log(`[webhook/github] ignored action: ${payload.action}`);
+    json(res, 200, { ignored: true });
+    return;
+  }
+
+  const issue = payload.issue as Record<string, unknown>;
+  const number = issue.number as number;
+  const title = issue.title as string;
+  const body = (issue.body ?? "") as string;
+  const author = (issue.user as Record<string, unknown>).login as string;
+  const url = issue.html_url as string;
+  const labels = (issue.labels as Array<Record<string, unknown>>).map(
+    (l) => l.name as string,
+  );
+  const created_at = issue.created_at as string;
+
+  log(`[webhook/github] received issue #${number}: ${title}`);
+
+  const triggerFile = `github-${number}-${Date.now()}.json`;
+  const triggerPath = join(PENDING_DIR, triggerFile);
+  const triggerData = {
+    source: "github",
+    github_issue: { number, title, body, author, url, labels, created_at },
+    created_at: new Date().toISOString(),
+  };
+
+  writeFileSync(triggerPath, JSON.stringify(triggerData, null, 2));
+  log(`[webhook/github] wrote trigger file to ${triggerPath}`);
+
+  notifyTrigger(triggerFile);
+
+  json(res, 200, { processed: true, issue: number });
+}
+
 function handleMediaServe(
   req: IncomingMessage,
   res: ServerResponse,
@@ -389,6 +478,10 @@ const server = createServer(async (req, res) => {
       await handleWhatsAppWebhook(req, res);
       return;
     }
+    if (method === "POST" && url === "/webhook/github") {
+      await handleGitHubWebhook(req, res);
+      return;
+    }
     if (method === "GET" && url === "/health") {
       handleHealth(req, res);
       return;
@@ -457,6 +550,7 @@ server.listen(PORT, () => {
   log(`  POST /webhook/call-completed`);
   log(`  POST /webhook/caller-check`);
   log(`  POST /webhook/whatsapp`);
+  log(`  POST /webhook/github`);
   log(`  GET  /health`);
   log(`  GET  /state`);
   log(`  GET  /media/:spec/:file`);

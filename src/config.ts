@@ -157,3 +157,40 @@ export function getOperantApiUrl(): string {
 export function getMode(): 'cloud' | 'local' {
   return getOperantApiKey() ? 'cloud' : 'local';
 }
+
+/**
+ * Get the GitHub repo in { owner, name } form.
+ * Reads GITHUB_REPO env var (must be "owner/repo" format).
+ */
+export function getGitHubRepo(): { owner: string; name: string } {
+  const repo = process.env.GITHUB_REPO ?? "";
+  const [owner, name] = repo.split("/");
+  if (!owner || !name) {
+    throw new Error("GITHUB_REPO must be set in owner/repo format");
+  }
+  return { owner, name };
+}
+
+/**
+ * Get the GitHub poll interval in milliseconds.
+ * Reads GITHUB_POLL_INTERVAL_MS env var, defaults to 60000.
+ */
+export function getGitHubPollInterval(): number {
+  return parseInt(process.env.GITHUB_POLL_INTERVAL_MS ?? "60000", 10);
+}
+
+/**
+ * Get the GitHub webhook secret for HMAC validation.
+ * Returns null if not configured.
+ */
+export function getGitHubWebhookSecret(): string | null {
+  return process.env.GITHUB_WEBHOOK_SECRET ?? null;
+}
+
+/**
+ * Get the GitHub personal access token for API calls.
+ * Returns null if not configured.
+ */
+export function getGitHubToken(): string | null {
+  return process.env.GITHUB_TOKEN ?? null;
+}

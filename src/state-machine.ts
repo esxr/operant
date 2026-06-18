@@ -64,7 +64,8 @@ export type FSMEvent =
   | "DEMO_APPROVED"
   | "DEMO_REJECTED"
   | "DEMO_SKIPPED"
-  | "DEMO_FAILED";
+  | "DEMO_FAILED"
+  | "ISSUE_RECEIVED"; // GitHub issue direct-to-triage (ADR-001)
 
 /** Side effects emitted by transitions. */
 export type SideEffect =
@@ -182,6 +183,12 @@ const TRANSITIONS: Map<State, Map<FSMEvent, TransitionEntry>> = new Map([
       to: "call_active",
       sideEffects: (ctx) => [
         { type: "EMIT_EVENT", name: "log", payload: { message: "Call started", callId: ctx.callId ?? "unknown" } },
+      ],
+    }],
+    ["ISSUE_RECEIVED", {
+      to: "triage",
+      sideEffects: (ctx) => [
+        { type: "EMIT_EVENT", name: "log", payload: { message: "GitHub issue received", issueNumber: ctx.issueNumber ?? "unknown", author: ctx.author ?? "unknown" } },
       ],
     }],
   ])],

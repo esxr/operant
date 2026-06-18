@@ -61,3 +61,26 @@ export declare function getOperantApiUrl(): string;
  * 'cloud' = proxied through operant-api, 'local' = direct Retell/Twilio calls.
  */
 export declare function getMode(): 'cloud' | 'local';
+/**
+ * Get the GitHub repo in { owner, name } form.
+ * Reads GITHUB_REPO env var (must be "owner/repo" format).
+ */
+export declare function getGitHubRepo(): {
+    owner: string;
+    name: string;
+};
+/**
+ * Get the GitHub poll interval in milliseconds.
+ * Reads GITHUB_POLL_INTERVAL_MS env var, defaults to 60000.
+ */
+export declare function getGitHubPollInterval(): number;
+/**
+ * Get the GitHub webhook secret for HMAC validation.
+ * Returns null if not configured.
+ */
+export declare function getGitHubWebhookSecret(): string | null;
+/**
+ * Get the GitHub personal access token for API calls.
+ * Returns null if not configured.
+ */
+export declare function getGitHubToken(): string | null;

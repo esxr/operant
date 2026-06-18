@@ -12,7 +12,7 @@ export type Phase = "idle" | "triage" | "sdlc" | "dev" | "audit" | "demo" | "con
 /** Fine-grained FSM states. */
 export type State = "idle" | "call_active" | "triage" | "sdlc_intent" | "sdlc_hld" | "sdlc_adr" | "sdlc_eis" | "sdlc_review" | "dev" | "dev_blocked" | "audit" | "audit_failed" | "demo_setup" | "demo_calling" | "demo_active" | "demo_feedback" | "confirmation" | "complete";
 /** Events that trigger state transitions. */
-export type FSMEvent = "CALL_RECEIVED" | "CALL_COMPLETED" | "NEW_REQUIREMENTS" | "CONFIRMATION_RECEIVED" | "REJECTED" | "ARTIFACT_PRODUCED" | "REVIEW_APPROVED" | "REVIEW_REJECTED" | "DEV_COMPLETE" | "BLOCKER_DETECTED" | "BLOCKER_RESOLVED" | "AUDIT_PASSED" | "AUDIT_FAILED" | "REVISION_READY" | "USER_CONFIRMED" | "USER_REJECTED" | "RESET" | "DEMO_READY" | "USER_JOINED_MEET" | "WALKTHROUGH_COMPLETE" | "DEMO_APPROVED" | "DEMO_REJECTED" | "DEMO_SKIPPED" | "DEMO_FAILED";
+export type FSMEvent = "CALL_RECEIVED" | "CALL_COMPLETED" | "NEW_REQUIREMENTS" | "CONFIRMATION_RECEIVED" | "REJECTED" | "ARTIFACT_PRODUCED" | "REVIEW_APPROVED" | "REVIEW_REJECTED" | "DEV_COMPLETE" | "BLOCKER_DETECTED" | "BLOCKER_RESOLVED" | "AUDIT_PASSED" | "AUDIT_FAILED" | "REVISION_READY" | "USER_CONFIRMED" | "USER_REJECTED" | "RESET" | "DEMO_READY" | "USER_JOINED_MEET" | "WALKTHROUGH_COMPLETE" | "DEMO_APPROVED" | "DEMO_REJECTED" | "DEMO_SKIPPED" | "DEMO_FAILED" | "ISSUE_RECEIVED";
 /** Side effects emitted by transitions. */
 export type SideEffect = {
     type: "CREATE_SPEC_DIR";

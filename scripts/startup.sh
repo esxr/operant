@@ -54,6 +54,13 @@ if [ "$MODE" = "cloud" ]; then
   fi
 fi
 
+# ── Session-start GitHub issue check (FR-3) ────────────────────────
+if [ -f "$PLUGIN_ROOT/lib/cli/poll-github.js" ] && [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
+  echo "[startup/github] Checking for unprocessed GitHub issues..."
+  OPERANT_PI_DATA_DIR="$DATA_DIR" node "$PLUGIN_ROOT/lib/cli/poll-github.js" --once 2>&1 || true
+  echo "[startup/github] Session-start check complete"
+fi
+
 # ── Clean stale PID files ───────────────────────────────────────────
 for pidfile in "$DATA_DIR"/*.pid; do
   [ -f "$pidfile" ] || continue
