@@ -20,13 +20,33 @@
 #   E2E_ISSUE_REPO           - GitHub repo for issue tracking (defaults to target)
 #   TWILIO_WHATSAPP_RECIPIENT - WhatsApp number for gate approvals
 #   E2E_FIXTURE_FILE         - Custom trigger fixture JSON path
+#
+# Flags:
+#   --trigger-source voice    Use voice call trigger (default)
+#   --trigger-source github   Use GitHub issue trigger
 # =============================================================================
 
 set -euo pipefail
 
+# Parse --trigger-source flag
+TRIGGER_SOURCE="voice"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --trigger-source) TRIGGER_SOURCE="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FIXTURE_FILE="${E2E_FIXTURE_FILE:-$PLUGIN_DIR/tests/fixtures/health-endpoint-trigger.json}"
+
+# Select fixture based on trigger source
+if [ "$TRIGGER_SOURCE" = "github" ]; then
+  FIXTURE_FILE="${E2E_FIXTURE_FILE:-$PLUGIN_DIR/tests/fixtures/github-issue-trigger.json}"
+else
+  FIXTURE_FILE="${E2E_FIXTURE_FILE:-$PLUGIN_DIR/tests/fixtures/health-endpoint-trigger.json}"
+fi
+
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 WORKDIR="/tmp/operant-e2e-$TIMESTAMP"
 REPO="${E2E_TARGET_REPO:-esxr/operant-sample-app}"
@@ -292,13 +312,37 @@ WEOF
   # Create specs output dir (where SDLC artifacts go)
   mkdir -p "$WORKDIR/docs/specs"
 
-  # Extract transcript from trigger fixture for the issue body
-  local transcript
-  transcript=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['transcript'])" 2>/dev/null)
-  local call_summary
-  call_summary=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['call_analysis']['call_summary'])" 2>/dev/null)
-  local caller_name
-  caller_name=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['caller_name'])" 2>/dev/null)
+  # Extract trigger info for the GitHub issue body
+  local feature_description=""
+  local trigger_info=""
+
+  if [ "$TRIGGER_SOURCE" = "github" ]; then
+    local issue_title issue_body issue_author
+    issue_title=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['github_issue']['title'])" 2>/dev/null)
+    issue_body=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['github_issue']['body'])" 2>/dev/null)
+    issue_author=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['github_issue']['author'])" 2>/dev/null)
+    trigger_info="### Feature Request (GitHub Issue)
+
+> **Author:** @$issue_author
+> **Title:** $issue_title
+
+\`\`\`
+$issue_body
+\`\`\`"
+  else
+    local transcript call_summary caller_name
+    transcript=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['transcript'])" 2>/dev/null)
+    call_summary=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['call_analysis']['call_summary'])" 2>/dev/null)
+    caller_name=$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['caller_name'])" 2>/dev/null)
+    trigger_info="### Feature Request (Voice Call)
+
+> **Caller:** $caller_name
+> **Summary:** $call_summary
+
+\`\`\`
+$transcript
+\`\`\`"
+  fi
 
   # Create GitHub issue with full context
   log "Creating GitHub issue"
@@ -306,14 +350,7 @@ WEOF
   cat > "$issue_body_file" <<IBODY
 ## Full Pipeline E2E Test
 
-### Feature Request (Voice Call)
-
-> **Caller:** $caller_name
-> **Summary:** $call_summary
-
-\`\`\`
-$transcript
-\`\`\`
+$trigger_info
 
 ### Expected Outcome
 - \`GET /health\` endpoint added to \`server.js\`
@@ -324,6 +361,7 @@ $transcript
 ### Pipeline Config
 | Setting | Value |
 |---------|-------|
+| Trigger source | \`$TRIGGER_SOURCE\` |
 | Target repo | \`$REPO\` |
 | SDLC model | \`sonnet\` (via sdlc-writer) |
 | Dev model | \`sonnet\` (via dev-builder) |
@@ -361,7 +399,7 @@ IBODY
 # =============================================================================
 
 phase_triage() {
-  log "=== PHASE 1: Triage ==="
+  log "=== PHASE 1: Triage (source: $TRIGGER_SOURCE) ==="
   local start_time=$SECONDS
 
   cd "$WORKDIR"
@@ -400,24 +438,59 @@ print(name)
   assert_state "sdlc_intent"
   assert_file_exists "$SPEC_DIR/REQUIREMENTS.md"
 
+  # GitHub-specific assertions
+  if [ "$TRIGGER_SOURCE" = "github" ]; then
+    # REQUIREMENTS.md must contain the source reference header
+    if ! grep -q "Source: GitHub Issue" "$SPEC_DIR/REQUIREMENTS.md"; then
+      log "FAIL: REQUIREMENTS.md missing GitHub source reference header"
+      gh_comment "**Phase 1: Triage** FAILED — missing \`> Source: GitHub Issue #N\` header"
+      exit 1
+    fi
+    log "GitHub source reference header: OK"
+
+    # source-metadata.json must exist
+    assert_file_exists "$SPEC_DIR/source-metadata.json"
+
+    # source-metadata.json must contain issue_number and issue_url
+    python3 -c "
+import json, sys
+d = json.load(open('$SPEC_DIR/source-metadata.json'))
+assert d['source'] == 'github', f'source={d[\"source\"]}'
+assert isinstance(d['issue_number'], int), f'issue_number={d[\"issue_number\"]}'
+assert d['issue_url'].startswith('https://github.com/'), f'issue_url={d[\"issue_url\"]}'
+print('source-metadata.json: valid')
+" 2>&1 || { log "FAIL: source-metadata.json invalid"; exit 1; }
+  fi
+
   local duration=$(( SECONDS - start_time ))
   local requirements_content
   requirements_content=$(cat "$SPEC_DIR/REQUIREMENTS.md" 2>/dev/null || echo "(empty)")
   local classification
   classification=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('classification','unknown'))" 2>/dev/null || echo "unknown")
 
+  # Build FSM transitions description based on source
+  local fsm_transitions
+  if [ "$TRIGGER_SOURCE" = "github" ]; then
+    fsm_transitions="idle → triage (ISSUE_RECEIVED)
+triage → sdlc_intent (NEW_REQUIREMENTS)"
+    local input_desc="GitHub issue trigger (source: \`github\`, issue: \`#$(python3 -c "import json; print(json.load(open('$FIXTURE_FILE'))['github_issue']['number'])" 2>/dev/null)\`)"
+  else
+    fsm_transitions="idle → call_active (CALL_RECEIVED)
+call_active → triage (CALL_COMPLETED)
+triage → sdlc_intent (NEW_REQUIREMENTS)"
+    local input_desc="Voice call trigger (call_id: \`e2e-test-call-001\`)"
+  fi
+
   gh_comment "$(cat <<COMMENT
 ## Phase 1: Triage (${duration}s)
 
 **Agent:** \`process-trigger.js\` (deterministic — no LLM)
-**Input:** Trigger JSON from voice call (call_id: \`e2e-test-call-001\`)
-**Result:** Classified as \`$classification\` → created spec \`health-check-endpoint\`
+**Input:** $input_desc
+**Result:** Classified as \`$classification\` → created spec \`$(basename "$SPEC_DIR")\`
 
 ### FSM Transitions
 \`\`\`
-idle → call_active (CALL_RECEIVED)
-call_active → triage (CALL_COMPLETED)
-triage → sdlc_intent (NEW_REQUIREMENTS)
+$fsm_transitions
 \`\`\`
 
 ### REQUIREMENTS.md
@@ -888,6 +961,7 @@ phase_evaluation() {
 
 main() {
   log "Starting full pipeline E2E test"
+  log "Trigger source: $TRIGGER_SOURCE"
   log "Timestamp: $TIMESTAMP"
   log "Plugin: $PLUGIN_DIR"
   log "Workdir: $WORKDIR"

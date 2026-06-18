@@ -1,0 +1,13 @@
+{
+  "source": "github",
+  "github_issue": {
+    "number": 99,
+    "title": "Add GET /health endpoint returning JSON status",
+    "body": "The app needs a health check endpoint for monitoring.\n\nRequirements:\n- Add a GET /health route to server.js\n- Return JSON: { \"status\": \"ok\", \"timestamp\": \"<ISO 8601>\" }\n- Response content-type must be application/json\n- Return HTTP 200 on success\n\nThis will be used by the load balancer to verify the app is running.",
+    "author": "e2e-tester",
+    "url": "https://github.com/esxr/operant-sample-app/issues/99",
+    "labels": ["feedback"],
+    "created_at": "2026-06-18T00:00:00Z"
+  },
+  "created_at": "2026-06-18T00:00:01Z"
+}

@@ -130,7 +130,8 @@ npx vitest run
 npx bats tests/hooks/*.test.sh
 
 # Layer 2 — full pipeline E2E (slow, ~$2-5, pre-release)
-bash tests/e2e/full-pipeline.sh
+bash tests/e2e/full-pipeline.sh                          # voice trigger (default)
+bash tests/e2e/full-pipeline.sh --trigger-source github  # GitHub issue trigger
 ```
 
 ## File Structure
@@ -160,7 +161,8 @@ tests/
   e2e/
     full-pipeline.sh              # 10-phase real pipeline test
   fixtures/
-    health-endpoint-trigger.json  # seeded Retell-like trigger
+    health-endpoint-trigger.json  # seeded Retell-like trigger (voice)
+    github-issue-trigger.json     # seeded GitHub issue trigger
 ```
 
 ## Key Dependencies
