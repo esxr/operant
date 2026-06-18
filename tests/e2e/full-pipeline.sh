@@ -12,23 +12,31 @@
 # Plugin:       /Users/pranav/Desktop/operant (loaded via --plugin-dir)
 #
 # Usage: bash tests/e2e/full-pipeline.sh
+#        E2E_TARGET_REPO=pegg-app/pegg-app bash tests/e2e/full-pipeline.sh
 # Exit:  0 on PASS, 1 on FAIL
+#
+# Environment variables (all optional, have sane defaults):
+#   E2E_TARGET_REPO          - GitHub repo to clone and test against
+#   E2E_ISSUE_REPO           - GitHub repo for issue tracking (defaults to target)
+#   TWILIO_WHATSAPP_RECIPIENT - WhatsApp number for gate approvals
+#   E2E_FIXTURE_FILE         - Custom trigger fixture JSON path
 # =============================================================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FIXTURE_FILE="$PLUGIN_DIR/tests/fixtures/health-endpoint-trigger.json"
+FIXTURE_FILE="${E2E_FIXTURE_FILE:-$PLUGIN_DIR/tests/fixtures/health-endpoint-trigger.json}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 WORKDIR="/tmp/operant-e2e-$TIMESTAMP"
-REPO="esxr/operant-sample-app"
-ISSUE_REPO="esxr/operant-sample-app"
+REPO="${E2E_TARGET_REPO:-esxr/operant-sample-app}"
+ISSUE_REPO="${E2E_ISSUE_REPO:-$REPO}"
 ISSUE_NUM=""
 SPEC_DIR=""  # set after triage
 DATA_DIR=""  # set after clone
 PROMPTS_DIR="$SCRIPT_DIR/../prompts"
 CHROME_PID=""
+WHATSAPP_NUMBER="${TWILIO_WHATSAPP_RECIPIENT:-+61416052430}"
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -168,7 +176,7 @@ bridge_reply() {
   cat > "$reply_file" <<SEOF
 {
   "source": "$source",
-  "from_number": "+61416052430",
+  "from_number": "$WHATSAPP_NUMBER",
   "body": "1",
   "caller_name": "$caller",
   "message_sid": "WA_$(date +%s)"
@@ -268,12 +276,12 @@ setup() {
   echo "idle" > "$DATA_DIR/current-state.txt"
 
   # Set up whitelist (needed for WhatsApp gates)
-  cat > "$DATA_DIR/whitelist.json" << 'WEOF'
+  cat > "$DATA_DIR/whitelist.json" <<WEOF
 {
   "callers": [
     { "phone": "+16505551234", "name": "E2E Test User", "role": "caller", "added": "2026-06-16" }
   ],
-  "default_blocker_target": "+61416052430"
+  "default_blocker_target": "$WHATSAPP_NUMBER"
 }
 WEOF
 
