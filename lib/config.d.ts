@@ -84,3 +84,19 @@ export declare function getGitHubWebhookSecret(): string | null;
  * Returns null if not configured.
  */
 export declare function getGitHubToken(): string | null;
+/**
+ * Get the WhatsApp participants list for group notifications.
+ * Reads OPERANT_WHATSAPP_PARTICIPANTS env var (comma-separated +<number> values).
+ * Returns [] when the variable is absent or empty — triggers 1:1 fallback (FR-5).
+ */
+export declare function getWhatsAppParticipants(): string[];
+/**
+ * Read the stored Twilio Conversation SID from conversation-sid.txt.
+ * Returns null if the file is absent or empty (triggers conversation creation on first use).
+ */
+export declare function getConversationSid(): string | null;
+/**
+ * Atomically write a Twilio Conversation SID to conversation-sid.txt.
+ * Uses write-tmp-then-rename pattern (NFC-4) matching github-cursor.txt.
+ */
+export declare function writeConversationSid(sid: string): void;

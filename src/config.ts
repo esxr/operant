@@ -5,7 +5,7 @@
  * Reads paths from environment variables and provides state file I/O.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 import type { State } from "./state-machine.js";
@@ -193,4 +193,42 @@ export function getGitHubWebhookSecret(): string | null {
  */
 export function getGitHubToken(): string | null {
   return process.env.GITHUB_TOKEN ?? null;
+}
+
+/**
+ * Get the WhatsApp participants list for group notifications.
+ * Reads OPERANT_WHATSAPP_PARTICIPANTS env var (comma-separated +<number> values).
+ * Returns [] when the variable is absent or empty — triggers 1:1 fallback (FR-5).
+ */
+export function getWhatsAppParticipants(): string[] {
+  const raw = process.env.OPERANT_WHATSAPP_PARTICIPANTS ?? "";
+  if (!raw.trim()) return [];
+  return raw.split(",").map((n) => n.trim()).filter(Boolean);
+}
+
+/**
+ * Read the stored Twilio Conversation SID from conversation-sid.txt.
+ * Returns null if the file is absent or empty (triggers conversation creation on first use).
+ */
+export function getConversationSid(): string | null {
+  const path = join(getDataDir(), "conversation-sid.txt");
+  try {
+    const raw = readFileSync(path, "utf-8").trim();
+    return raw.length > 0 ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Atomically write a Twilio Conversation SID to conversation-sid.txt.
+ * Uses write-tmp-then-rename pattern (NFC-4) matching github-cursor.txt.
+ */
+export function writeConversationSid(sid: string): void {
+  const dataDir = getDataDir();
+  mkdirSync(dataDir, { recursive: true });
+  const tmpPath = join(dataDir, "conversation-sid.txt.tmp");
+  const finalPath = join(dataDir, "conversation-sid.txt");
+  writeFileSync(tmpPath, sid + "\n");
+  renameSync(tmpPath, finalPath);
 }

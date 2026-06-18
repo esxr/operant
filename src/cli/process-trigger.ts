@@ -31,6 +31,7 @@ import {
   writeActiveSpec,
   ensureDataDir,
 } from "../config.js";
+import { sendGroupNotification } from "../whatsapp.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,69 +103,18 @@ function moveToProcessed(triggerPath: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub notification helper
+// GitHub notification helper (delegates to whatsapp.ts — ADR-011)
 // ---------------------------------------------------------------------------
 
-async function sendGitHubNotification(issue: NonNullable<TriggerPayload["github_issue"]>): Promise<void> {
-  try {
-    const msg = [
-      `New feedback from @${issue.author}: "${issue.title}"`,
-      `Issue #${issue.number}: ${issue.url}`,
-      `Starting pipeline.`,
-    ].join("\n");
-
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const whatsappFrom = process.env.TWILIO_WHATSAPP_NUMBER;
-    const whatsappTo = process.env.TWILIO_WHATSAPP_RECIPIENT;
-
-    if (!accountSid || !authToken || !whatsappFrom || !whatsappTo) {
-      process.stderr.write("[process-trigger] WhatsApp not configured, skipping notification\n");
-      return;
-    }
-
-    const from = whatsappFrom.startsWith("whatsapp:") ? whatsappFrom : `whatsapp:${whatsappFrom}`;
-    const to = whatsappTo.startsWith("whatsapp:") ? whatsappTo : `whatsapp:${whatsappTo}`;
-
-    const { default: https } = await import("node:https");
-    const params = new URLSearchParams();
-    params.append("From", from);
-    params.append("To", to);
-    params.append("Body", msg);
-    const payload = params.toString();
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-
-    await new Promise<void>((resolve, reject) => {
-      const req = https.request({
-        hostname: "api.twilio.com",
-        port: 443,
-        path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Content-Length": String(Buffer.byteLength(payload)),
-        },
-      }, (res) => {
-        let data = "";
-        res.on("data", (chunk: Buffer) => { data += chunk; });
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`Twilio error ${res.statusCode}: ${data.slice(0, 200)}`));
-          } else {
-            resolve();
-          }
-        });
-      });
-      req.on("error", reject);
-      req.write(payload);
-      req.end();
-    });
-
-    // Success — no log (stdout is reserved for JSON result)
-  } catch (err) {
-    process.stderr.write(`[process-trigger] WhatsApp notification failed: ${(err as Error).message}\n`);
-  }
+async function sendGitHubNotification(
+  issue: NonNullable<TriggerPayload["github_issue"]>,
+): Promise<void> {
+  const msg = [
+    `New feedback from @${issue.author}: "${issue.title}"`,
+    `Issue #${issue.number}: ${issue.url}`,
+    `Starting pipeline.`,
+  ].join("\n");
+  await sendGroupNotification(msg);
 }
 
 // ---------------------------------------------------------------------------
